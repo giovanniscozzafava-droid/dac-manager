@@ -1,4 +1,5 @@
 import { AutomazioniPanel } from "./AutomazioniPanel"
+import { AutomazioniPanel } from './AutomazioniPanel'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
@@ -13,12 +14,14 @@ interface Props { operatore: Operatore }
 // MAIN
 // ═══════════════════════════════════════════════════════════
 export function ConfigPage({ operatore }: Props) {
-  const [tab, setTab] = useState<'operatori' | 'servizi' | 'pacchetti' | 'struttura'>('operatori')
+  const [tab, setTab] = useState<'operatori' | 'hr' | 'servizi' | 'pacchetti' | 'automazioni' | 'struttura'>('operatori')
 
   const TABS = [
     { id: 'operatori' as const, label: '👥 Operatori', icon: Users },
+    { id: 'hr' as const, label: '💼 Contratti HR', icon: Users },
     { id: 'servizi' as const, label: '📋 Servizi & Listino', icon: ListChecks },
     { id: 'pacchetti' as const, label: '📦 Pacchetti Predefiniti', icon: Package },
+    { id: 'automazioni' as const, label: '⚡ Automazioni', icon: Zap },
     { id: 'struttura' as const, label: '🏥 Struttura', icon: Building2 },
   ]
 
@@ -40,7 +43,7 @@ export function ConfigPage({ operatore }: Props) {
         </div>
       </div>
       <div className="flex-1 overflow-auto p-4 lg:p-6">
-        {tab === 'operatori' ? <OperatoriTab /> : tab === 'servizi' ? <ServiziTab /> : tab === 'pacchetti' ? <PacchettiPredTab /> : <StrutturaTab />}
+        {tab === 'operatori' ? <OperatoriTab /> : tab === 'hr' ? <HRPlaceholder /> : tab === 'automazioni' ? <AutomazioniPanel /> : tab === 'servizi' ? <ServiziTab /> : tab === 'pacchetti' ? <PacchettiPredTab /> : <StrutturaTab />}
       </div>
     </div>
   )
@@ -415,4 +418,8 @@ function Btns({ onClose, onSave, saving, disabled }: { onClose: () => void; onSa
 
 function Skeleton({ n }: { n: number }) {
   return <div className="space-y-2">{Array.from({ length: n }).map((_, i) => <div key={i} className="h-14 rounded-lg bg-white/3 animate-pulse" />)}</div>
+}
+
+function HRPlaceholder() {
+  return <div className="text-center py-16 text-dac-gray-500"><div className="text-4xl mb-3">💼</div><div className="text-sm">Contratti HR — in sviluppo</div></div>
 }
