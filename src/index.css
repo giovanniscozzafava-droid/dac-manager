@@ -19,23 +19,10 @@
   scrollbar-color: #2e3a50 transparent;
 }
 
-*::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-
-*::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-*::-webkit-scrollbar-thumb {
-  background: #2e3a50;
-  border-radius: 3px;
-}
-
-*::-webkit-scrollbar-thumb:hover {
-  background: #3e4a60;
-}
+*::-webkit-scrollbar { width: 6px; height: 6px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background: #2e3a50; border-radius: 3px; }
+*::-webkit-scrollbar-thumb:hover { background: #3e4a60; }
 
 body {
   margin: 0;
@@ -48,10 +35,7 @@ body {
   height: 100vh;
 }
 
-#root {
-  height: 100vh;
-  overflow: hidden;
-}
+#root { height: 100vh; overflow: hidden; }
 
 /* Noise texture overlay */
 .noise-bg::before {
@@ -65,10 +49,7 @@ body {
 }
 
 /* KPI card glow */
-.kpi-glow {
-  position: relative;
-}
-
+.kpi-glow { position: relative; }
 .kpi-glow::after {
   content: '';
   position: absolute;
@@ -80,10 +61,7 @@ body {
   opacity: 0;
   transition: opacity 0.3s;
 }
-
-.kpi-glow:hover::after {
-  opacity: 1;
-}
+.kpi-glow:hover::after { opacity: 1; }
 
 /* Stato badge colors */
 .stato-prenotato { background: rgba(52, 152, 219, 0.15); color: #3498db; }
@@ -93,14 +71,28 @@ body {
 .stato-noshow { background: rgba(231, 76, 60, 0.15); color: #e74c3c; }
 .stato-cancellato { background: rgba(149, 165, 166, 0.15); color: #95a5a6; }
 
-/* Priority colors */
-.prio-urgente { border-left-color: #e74c3c; }
-.prio-alta { border-left-color: #e67e22; }
-.prio-media { border-left-color: #3498db; }
-.prio-bassa { border-left-color: #95a5a6; }
+/* Input field global */
+.input-field {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 13px;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+.input-field::placeholder { color: #566573; }
+.input-field:focus {
+  outline: none;
+  border-color: rgba(46, 134, 193, 0.5);
+  background: rgba(255, 255, 255, 0.08);
+}
+.input-field option { background: #162038; color: #fff; }
+select.input-field { cursor: pointer; }
+textarea.input-field { resize: vertical; min-height: 60px; }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+  .text-balance { text-wrap: balance; }
 }
