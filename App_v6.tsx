@@ -18,6 +18,9 @@ export default function App() {
           <div className="text-5xl mb-4">🏥</div>
           <h1 className="font-display text-2xl font-bold text-white mb-2">DAC Manager</h1>
           <p className="text-dac-gray-400 text-sm">Caricamento...</p>
+          <div className="mt-6 w-48 h-1 bg-dac-deep rounded-full overflow-hidden mx-auto">
+            <div className="h-full bg-dac-accent rounded-full animate-pulse" style={{ width: '60%' }} />
+          </div>
         </div>
       </div>
     )
