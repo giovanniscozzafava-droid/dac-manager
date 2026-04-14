@@ -247,10 +247,10 @@ export function TaskManager({ operatore }: Props) {
           return (
             <div key={stato}
               className={`flex-1 min-w-[220px] max-w-[320px] flex flex-col rounded-xl overflow-hidden transition-all duration-200
-                ${isDragOver ? 'ring-2 scale-[1.01]' : ''}`}
+                ${isDragOver ? 'scale-[1.01]' : ''}`}
               style={{
                 background: isDragOver ? `${config.colore}10` : 'rgba(255,255,255,0.02)',
-                ringColor: isDragOver ? config.colore : 'transparent',
+                boxShadow: isDragOver ? `0 0 0 2px ${config.colore}` : 'none',
               }}
               onDragOver={e => onDragOver(e, stato)}
               onDragLeave={onDragLeave}
