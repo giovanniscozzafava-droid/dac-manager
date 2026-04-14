@@ -361,7 +361,7 @@ function RepartiTab({ perReparto, totRicavi, ricaviPeriodo }: any) {
             <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
             <XAxis type="number" tick={{ fill: CHART_THEME.text, fontSize: 10 }} tickFormatter={v => `€${(v / 1000).toFixed(0)}k`} />
             <YAxis type="category" dataKey="name" tick={{ fill: CHART_THEME.text, fontSize: 10 }} width={100} />
-            <Tooltip contentStyle={{ background: CHART_THEME.tooltip, border: '1px solid #2e3a50', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [`€${v.toLocaleString('it-IT')}`, 'Ricavi']} />
+            <Tooltip contentStyle={{ background: CHART_THEME.tooltip, border: '1px solid #2e3a50', borderRadius: 8, fontSize: 11 }} formatter={(v: any) => `€${Number(v).toLocaleString('it-IT')}`} />
             <Bar dataKey="value" radius={[0, 4, 4, 0]} name="Ricavi">
               {perReparto.map((entry: any, i: number) => <Cell key={i} fill={entry.color} />)}
             </Bar>
