@@ -1,7 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { LoginSplash } from '@/components/LoginSplash'
-import { SelectOperatore } from '@/components/SelectOperatore'
 import { Layout } from '@/components/Layout'
 import { Dashboard } from '@/pages/Dashboard'
 
@@ -29,21 +28,21 @@ export default function App() {
     return <LoginSplash onLoginEmail={auth.loginEmail} error={auth.error} loading={auth.loading} />
   }
 
-  // Autenticato ma nessun operatore selezionato → selezione profilo
-  if (!auth.isOperatoreSelected) {
+  // Autenticato ma profilo non ancora caricato
+  if (!auth.isReady) {
     return (
-      <SelectOperatore
-        operatori={auth.operatori}
-        onSelect={auth.selectOperatore}
-        onLogout={auth.logoutFull}
-        userName={auth.user?.user_metadata?.full_name || auth.user?.email || ''}
-      />
+      <div className="h-screen flex items-center justify-center bg-dac-navy noise-bg">
+        <div className="text-center animate-fade-in">
+          <div className="text-5xl mb-4">🏥</div>
+          <p className="text-dac-gray-400 text-sm">Preparazione profilo...</p>
+        </div>
+      </div>
     )
   }
 
   // Tutto OK → App
   return (
-    <Layout operatore={auth.operatore!} onLogout={auth.logout} onLogoutFull={auth.logoutFull}>
+    <Layout operatore={auth.operatore!} onLogout={auth.logout} onLogoutFull={auth.logout}>
       <Routes>
         <Route path="/" element={<Dashboard operatore={auth.operatore!} />} />
         <Route path="/agenda" element={<PlaceholderPage title="📅 Agenda" />} />
