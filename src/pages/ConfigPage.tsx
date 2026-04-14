@@ -1,3 +1,4 @@
+import { AutomazioniPanel } from "./AutomazioniPanel"
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
