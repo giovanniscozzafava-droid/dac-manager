@@ -14,6 +14,7 @@ import { RicaviPage } from '@/pages/RicaviPage'
 import { CostiPage } from '@/pages/CostiPage'
 import { ParafarmaciaPage } from '@/pages/ParafarmaciaPage'
 import { ContabilitaPage } from '@/pages/ContabilitaPage'
+import { ConfigPage } from '@/pages/ConfigPage'
 
 export default function App() {
   const auth = useAuth()
@@ -36,7 +37,7 @@ export default function App() {
         <Route path="/costi" element={<CostiPage operatore={auth.operatore!} />} />
         <Route path="/parafarmacia" element={<ParafarmaciaPage operatore={auth.operatore!} />} />
         <Route path="/contabilita" element={<ContabilitaPage operatore={auth.operatore!} />} />
-        <Route path="/config" element={<PH title="⚙️ Configurazione" />} />
+        <Route path="/config" element={<ConfigPage operatore={auth.operatore!} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
@@ -50,18 +51,6 @@ function Splash({ text }: { text: string }) {
         <div className="text-5xl mb-4">🏥</div>
         <h1 className="font-display text-2xl font-bold text-white mb-2">DAC Manager</h1>
         <p className="text-dac-gray-400 text-sm">{text}</p>
-      </div>
-    </div>
-  )
-}
-
-function PH({ title }: { title: string }) {
-  return (
-    <div className="flex items-center justify-center h-full">
-      <div className="text-center animate-fade-in">
-        <div className="text-6xl mb-4">{title.split(' ')[0]}</div>
-        <h2 className="font-display text-xl font-bold text-white mb-2">{title}</h2>
-        <p className="text-dac-gray-400">Modulo in sviluppo</p>
       </div>
     </div>
   )
