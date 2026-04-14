@@ -93,6 +93,21 @@ body {
 select.input-field { cursor: pointer; }
 textarea.input-field { resize: vertical; min-height: 60px; }
 
+/* Table cells */
+.th-cell {
+  text-align: left;
+  padding: 8px 12px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #7f8c8d;
+}
+.td-cell {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
 @layer utilities {
   .text-balance { text-wrap: balance; }
 }
