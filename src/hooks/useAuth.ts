@@ -1,24 +1,37 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 
 export interface Operatore {
   id: string
   nome: string
+  cognome: string | null
   email: string | null
   ruolo: string
   emoji: string
   settore: string | null
   attivo: boolean
+  profilo_completo: boolean
+  telefono: string | null
 }
 
 export function useAuth() {
   const [session, setSession] = useState<any>(null)
   const [operatore, setOperatore] = useState<Operatore | null>(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+
+  const loadOperatore = useCallback(async (email: string | undefined) => {
+    if (!email) { setLoading(false); return }
+    const { data } = await supabase
+      .from('operatori')
+      .select('*')
+      .eq('email', email.toLowerCase())
+      .eq('attivo', true)
+      .maybeSingle()
+    setOperatore(data as Operatore | null)
+    setLoading(false)
+  }, [])
 
   useEffect(() => {
-    // Ascolta cambi sessione
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session)
       if (data.session) loadOperatore(data.session.user.email)
@@ -32,27 +45,7 @@ export function useAuth() {
     })
 
     return () => listener.subscription.unsubscribe()
-  }, [])
-
-  async function loadOperatore(email: string | undefined) {
-    if (!email) { setLoading(false); return }
-    setLoading(true)
-
-    const { data } = await supabase
-      .from('operatori')
-      .select('*')
-      .eq('email', email.toLowerCase())
-      .eq('attivo', true)
-      .maybeSingle()
-
-    if (data) {
-      setOperatore(data as Operatore)
-    } else {
-      // Nessun operatore trovato — l'utente deve completare la registrazione
-      setOperatore(null)
-    }
-    setLoading(false)
-  }
+  }, [loadOperatore])
 
   async function logout() {
     await supabase.auth.signOut()
@@ -60,13 +53,21 @@ export function useAuth() {
     setOperatore(null)
   }
 
+  function refresh() {
+    if (session?.user?.email) {
+      setLoading(true)
+      loadOperatore(session.user.email)
+    }
+  }
+
   return {
     session,
     operatore,
     loading,
-    error,
     isAuthenticated: !!session,
-    isReady: !!session && !!operatore,
+    hasProfile: !!operatore,
+    isReady: !!session && !!operatore && operatore.profilo_completo,
     logout,
+    refresh,
   }
 }
