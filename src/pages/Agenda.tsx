@@ -529,9 +529,8 @@ function DettaglioAppuntamento({ app, onClose, onCambiaStato, onDeleted }: {
                 const isActive = app.stato === s
                 return (
                   <button key={s} onClick={() => onCambiaStato(app.id, s)}
-                    className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all
-                      ${isActive ? 'ring-2 ring-offset-1 ring-offset-dac-card' : 'hover:opacity-80'}`}
-                    style={{ background: sc.bg, color: sc.text, ringColor: isActive ? sc.text : 'transparent' }}>
+                    className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${isActive ? '' : 'hover:opacity-80'}`}
+                    style={{ background: sc.bg, color: sc.text, boxShadow: isActive ? `0 0 0 2px ${sc.text}` : 'none' }}>
                     {sc.label} {s}
                   </button>
                 )
