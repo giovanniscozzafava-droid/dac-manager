@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
 import { format } from 'date-fns'
 import {
-  CheckSquare, Plus, X, Clock, AlertTriangle,
+  CheckSquare, Plus, X, Clock,
   Check, Search, Eye, User
 } from 'lucide-react'
 
@@ -25,9 +25,7 @@ interface Task {
   note: string | null
 }
 
-interface Props {
-  operatore: Operatore
-}
+interface Props { operatore: Operatore }
 
 const STATI = ['Da fare', 'In corso', 'In attesa', 'Completato']
 const PRIORITA = ['Urgente', 'Alta', 'Media', 'Bassa']
@@ -38,7 +36,6 @@ const TIPI = [
   '📄 Amministrazione', '🎯 Libero'
 ]
 
-// Admin: vedono i task di tutti
 const ADMIN_EMAILS = ['giovanni.scozzafava@gmail.com']
 const ADMIN_NOMI = ['Daniela', 'Teresa', 'Giovanni (Tester)']
 
@@ -62,12 +59,8 @@ function getCountdown(scadenza: string | null, ora: string | null): {
   if (!scadenza) return null
   const now = new Date()
   const target = new Date(scadenza)
-  if (ora) {
-    const [h, m] = ora.split(':').map(Number)
-    target.setHours(h || 9, m || 0, 0, 0)
-  } else {
-    target.setHours(23, 59, 59, 0)
-  }
+  if (ora) { const [h, m] = ora.split(':').map(Number); target.setHours(h || 9, m || 0, 0, 0) }
+  else { target.setHours(23, 59, 59, 0) }
   const diffMs = target.getTime() - now.getTime()
   const diffMin = Math.floor(diffMs / 60000)
   const diffH = Math.floor(diffMs / 3600000)
@@ -86,6 +79,9 @@ function getCountdown(scadenza: string | null, ora: string | null): {
   return { label: `${diffMin}m`, color: '#e74c3c', urgente: true, scaduto: false }
 }
 
+// ═══════════════════════════════════════════════════════════
+// MAIN
+// ═══════════════════════════════════════════════════════════
 export function TaskManager({ operatore }: Props) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [operatori, setOperatori] = useState<{ id: string; nome: string; emoji: string; email: string | null }[]>([])
@@ -97,51 +93,30 @@ export function TaskManager({ operatore }: Props) {
   const [showNew, setShowNew] = useState(false)
   const [selected, setSelected] = useState<Task | null>(null)
   const [tick, setTick] = useState(0)
-  const [viewAll, setViewAll] = useState(false) // admin: vedi tutti
+  const [viewAll, setViewAll] = useState(false)
+  const [dragTaskId, setDragTaskId] = useState<string | null>(null)
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null)
 
-  // Controlla se è admin
-  const isAdmin = operatore.ruolo === 'admin' ||
-    ADMIN_EMAILS.includes(operatore.email ?? '') ||
-    ADMIN_NOMI.includes(operatore.nome)
+  const isAdmin = operatore.ruolo === 'admin' || ADMIN_EMAILS.includes(operatore.email ?? '') || ADMIN_NOMI.includes(operatore.nome)
 
   const loadTasks = useCallback(async () => {
     setLoading(true)
     let query = supabase.from('task').select('*').neq('stato', 'Archiviato')
-
-    // Se NON è admin, mostra solo i propri task
-    if (!isAdmin) {
-      query = query.eq('assegnato_a_nome', operatore.nome)
-    }
-
+    if (!isAdmin) query = query.eq('assegnato_a_nome', operatore.nome)
     const { data } = await query.order('scadenza', { ascending: true, nullsFirst: false })
-    setTasks(data ?? [])
-    setLoading(false)
+    setTasks(data ?? []); setLoading(false)
   }, [isAdmin, operatore.nome])
 
   useEffect(() => { loadTasks() }, [loadTasks])
-  useEffect(() => {
-    supabase.from('operatori').select('id, nome, emoji, email').eq('attivo', true).order('nome')
-      .then(({ data }) => setOperatori(data ?? []))
-  }, [])
-
-  // Countdown tick
-  useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 30000)
-    return () => clearInterval(interval)
-  }, [])
-
-  // Realtime
-  useEffect(() => {
-    const ch = supabase.channel('task-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'task' }, () => loadTasks()).subscribe()
-    return () => { supabase.removeChannel(ch) }
-  }, [loadTasks])
+  useEffect(() => { supabase.from('operatori').select('id, nome, emoji, email').eq('attivo', true).order('nome').then(({ data }) => setOperatori(data ?? [])) }, [])
+  useEffect(() => { const i = setInterval(() => setTick(t => t + 1), 30000); return () => clearInterval(i) }, [])
+  useEffect(() => { const ch = supabase.channel('task-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'task' }, () => loadTasks()).subscribe(); return () => { supabase.removeChannel(ch) } }, [loadTasks])
 
   function isScaduto(t: Task) { return !!getCountdown(t.scadenza, t.ora)?.scaduto && t.stato !== 'Completato' }
 
   function filteredTasks(stato: string) {
     return tasks.filter(t => {
       if (t.stato !== stato) return false
-      // Admin con viewAll=false: mostra solo i propri
       if (isAdmin && !viewAll && filterPersona === '' && t.assegnato_a_nome !== operatore.nome) return false
       if (filterPersona && t.assegnato_a_nome !== filterPersona) return false
       if (filterPriorita && t.priorita !== filterPriorita) return false
@@ -164,6 +139,46 @@ export function TaskManager({ operatore }: Props) {
     setSelected(null); loadTasks()
   }
 
+  // ── DRAG & DROP ──
+  function onDragStart(e: React.DragEvent, taskId: string) {
+    setDragTaskId(taskId)
+    e.dataTransfer.effectAllowed = 'move'
+    // Rendi la card semi-trasparente durante il drag
+    if (e.currentTarget instanceof HTMLElement) {
+      setTimeout(() => { (e.currentTarget as HTMLElement).style.opacity = '0.4' }, 0)
+    }
+  }
+
+  function onDragEnd(e: React.DragEvent) {
+    setDragTaskId(null)
+    setDragOverCol(null)
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '1'
+    }
+  }
+
+  function onDragOver(e: React.DragEvent, stato: string) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverCol(stato)
+  }
+
+  function onDragLeave() {
+    setDragOverCol(null)
+  }
+
+  async function onDrop(e: React.DragEvent, nuovoStato: string) {
+    e.preventDefault()
+    setDragOverCol(null)
+    if (!dragTaskId) return
+
+    const task = tasks.find(t => t.id === dragTaskId)
+    if (!task || task.stato === nuovoStato) { setDragTaskId(null); return }
+
+    setDragTaskId(null)
+    await cambiaStato(task.id, nuovoStato)
+  }
+
   const myTasks = tasks.filter(t => t.assegnato_a_nome === operatore.nome && t.stato !== 'Completato')
   const myScaduti = myTasks.filter(t => isScaduto(t))
   const totScaduti = tasks.filter(t => isScaduto(t)).length
@@ -178,24 +193,17 @@ export function TaskManager({ operatore }: Props) {
             <h1 className="font-display font-bold text-lg text-white">
               {isAdmin && viewAll ? 'Task — Tutti' : `Task — ${operatore.nome}`}
             </h1>
-            {/* Badge personali */}
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/5 text-dac-gray-300">
-              {myTasks.length} aperti
-            </span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/5 text-dac-gray-300">{myTasks.length} aperti</span>
             {myScaduti.length > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-dac-red/15 text-dac-red animate-pulse">
-                {myScaduti.length} scadut{myScaduti.length !== 1 ? 'i' : 'o'}
-              </span>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-dac-red/15 text-dac-red animate-pulse">{myScaduti.length} scadut{myScaduti.length !== 1 ? 'i' : 'o'}</span>
             )}
           </div>
           <div className="flex items-center gap-2">
-            {/* Toggle admin: vedi tutti / solo miei */}
             {isAdmin && (
               <button onClick={() => setViewAll(!viewAll)}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all
                   ${viewAll ? 'bg-dac-accent/15 border-dac-accent/30 text-dac-accent' : 'bg-white/5 border-white/10 text-dac-gray-400 hover:text-white'}`}>
-                <Eye size={13} />
-                {viewAll ? '👥 Tutti' : '👤 Solo miei'}
+                <Eye size={13} /> {viewAll ? '👥 Tutti' : '👤 Solo miei'}
               </button>
             )}
             <button onClick={() => setShowNew(true)}
@@ -204,8 +212,6 @@ export function TaskManager({ operatore }: Props) {
             </button>
           </div>
         </div>
-
-        {/* Filtri — filtro persona solo se admin + viewAll */}
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <div className="relative min-w-[160px]">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dac-gray-500" />
@@ -215,7 +221,7 @@ export function TaskManager({ operatore }: Props) {
           {isAdmin && viewAll && (
             <select value={filterPersona} onChange={e => setFilterPersona(e.target.value)}
               className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white focus:outline-none [&>option]:bg-dac-deep">
-              <option value="">👥 Tutti gli operatori</option>
+              <option value="">👥 Tutti</option>
               {operatori.map(o => <option key={o.id} value={o.nome}>{o.emoji} {o.nome}</option>)}
             </select>
           )}
@@ -232,25 +238,44 @@ export function TaskManager({ operatore }: Props) {
         </div>
       </div>
 
-      {/* Kanban */}
+      {/* Kanban con drag & drop */}
       <div className="flex-1 flex gap-3 p-3 lg:p-4 overflow-x-auto overflow-y-hidden">
         {STATI.map(stato => {
           const config = STATO_CONFIG[stato]
           const columnTasks = filteredTasks(stato)
+          const isDragOver = dragOverCol === stato
           return (
-            <div key={stato} className="flex-1 min-w-[220px] max-w-[320px] flex flex-col rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.02)' }}>
-              <div className="px-3 py-2.5 flex items-center justify-between flex-shrink-0" style={{ background: config.bg, borderBottom: `2px solid ${config.colore}30` }}>
+            <div key={stato}
+              className={`flex-1 min-w-[220px] max-w-[320px] flex flex-col rounded-xl overflow-hidden transition-all duration-200
+                ${isDragOver ? 'ring-2 scale-[1.01]' : ''}`}
+              style={{
+                background: isDragOver ? `${config.colore}10` : 'rgba(255,255,255,0.02)',
+                ringColor: isDragOver ? config.colore : 'transparent',
+              }}
+              onDragOver={e => onDragOver(e, stato)}
+              onDragLeave={onDragLeave}
+              onDrop={e => onDrop(e, stato)}
+            >
+              <div className="px-3 py-2.5 flex items-center justify-between flex-shrink-0"
+                style={{ background: config.bg, borderBottom: `2px solid ${config.colore}30` }}>
                 <span className="text-xs font-bold" style={{ color: config.colore }}>{config.icon} {stato}</span>
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${config.colore}20`, color: config.colore }}>{columnTasks.length}</span>
               </div>
-              <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+              <div className={`flex-1 overflow-y-auto p-2 space-y-1.5 transition-all duration-200 ${isDragOver ? 'bg-white/[0.02]' : ''}`}>
                 {loading ? Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 rounded-lg bg-white/3 animate-pulse" />)
-                  : columnTasks.length === 0 ? <div className="text-center py-8 text-dac-gray-500 text-[10px]">Nessun task</div>
+                  : columnTasks.length === 0 ? (
+                    <div className={`text-center py-8 text-[10px] border-2 border-dashed rounded-xl transition-colors
+                      ${isDragOver ? 'border-white/20 text-dac-gray-400' : 'border-transparent text-dac-gray-500'}`}>
+                      {isDragOver ? '↓ Rilascia qui' : 'Nessun task'}
+                    </div>
+                  )
                   : columnTasks.map(task => (
                     <TaskCard key={task.id} task={task} tick={tick} showAssegnato={isAdmin && viewAll}
                       onClick={() => setSelected(task)}
                       onForward={() => { const idx = STATI.indexOf(task.stato); if (idx < STATI.length - 1) cambiaStato(task.id, STATI[idx + 1]) }}
                       onBack={() => { const idx = STATI.indexOf(task.stato); if (idx > 0) cambiaStato(task.id, STATI[idx - 1]) }}
+                      onDragStart={e => onDragStart(e, task.id)}
+                      onDragEnd={onDragEnd}
                     />
                   ))
                 }
@@ -267,33 +292,38 @@ export function TaskManager({ operatore }: Props) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// CARD
+// CARD DRAGGABLE
 // ═══════════════════════════════════════════════════════════
-function TaskCard({ task, tick, showAssegnato, onClick, onForward, onBack }: {
-  task: Task; tick: number; showAssegnato: boolean; onClick: () => void; onForward: () => void; onBack: () => void
+function TaskCard({ task, tick, showAssegnato, onClick, onForward, onBack, onDragStart, onDragEnd }: {
+  task: Task; tick: number; showAssegnato: boolean; onClick: () => void
+  onForward: () => void; onBack: () => void
+  onDragStart: (e: React.DragEvent) => void; onDragEnd: (e: React.DragEvent) => void
 }) {
   const prio = PRIO_CONFIG[task.priorita] ?? PRIO_CONFIG['Media']
   const countdown = task.stato !== 'Completato' ? getCountdown(task.scadenza, task.ora) : null
 
   return (
-    <div onClick={onClick}
-      className={`rounded-lg p-2.5 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 bg-white border-l-[3px] ${countdown?.scaduto ? 'bg-red-50' : ''}`}
+    <div
+      draggable
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onClick}
+      className={`rounded-lg p-2.5 cursor-grab active:cursor-grabbing transition-all hover:shadow-lg hover:-translate-y-0.5
+        bg-white border-l-[3px] select-none ${countdown?.scaduto ? 'bg-red-50' : ''}`}
       style={{ borderLeftColor: prio.colore }}>
-      {/* Assegnato a — solo in vista admin */}
+
       {showAssegnato && (
         <div className="flex items-center gap-1 mb-1">
           <User size={9} className="text-gray-400" />
           <span className="text-[8px] font-bold text-gray-500 uppercase tracking-wider">{task.assegnato_a_nome}</span>
         </div>
       )}
-      <div className="text-[11px] font-semibold text-gray-800 leading-snug mb-1.5 pr-6 line-clamp-2">{task.descrizione}</div>
+      <div className="text-[11px] font-semibold text-gray-800 leading-snug mb-1.5 line-clamp-2">{task.descrizione}</div>
 
-      {/* Countdown */}
       {countdown && (
         <div className="mb-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold"
           style={{ background: countdown.color + '15', color: countdown.color }}>
-          <Clock size={9} />
-          {countdown.scaduto ? countdown.label : `⏱ ${countdown.label}`}
+          <Clock size={9} /> {countdown.scaduto ? countdown.label : `⏱ ${countdown.label}`}
         </div>
       )}
 
@@ -307,8 +337,8 @@ function TaskCard({ task, tick, showAssegnato, onClick, onForward, onBack }: {
       </div>
 
       <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-        <span className="text-[9px] text-gray-400">{!showAssegnato ? task.assegnato_da ? `da ${task.assegnato_da}` : '' : ''}</span>
-        <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
+        <span className="text-[9px] text-gray-400">{!showAssegnato && task.assegnato_da ? `da ${task.assegnato_da}` : ''}</span>
+        <div className="flex gap-0.5" onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
           {task.stato !== 'Da fare' && (
             <button onClick={onBack} className="px-1.5 py-0.5 rounded text-[10px] text-gray-400 hover:bg-amber-50 hover:text-amber-600 transition-colors">◀</button>
           )}
@@ -358,15 +388,15 @@ function TaskDetail({ task, tick, onClose, onCambiaStato, onArchivia, onDeleted 
           )}
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
-          <DetailRow label="Tipo" value={task.tipo} />
-          <DetailRow label="Priorità" value={`${prio.label} ${task.priorita}`} />
-          <DetailRow label="Assegnato a" value={task.assegnato_a_nome} />
-          {task.assegnato_da && <DetailRow label="Assegnato da" value={task.assegnato_da} />}
-          <DetailRow label="Creato" value={task.data_creazione ? format(new Date(task.data_creazione), 'dd/MM/yyyy HH:mm') : '—'} />
-          {task.scadenza && <DetailRow label="Scadenza" value={format(new Date(task.scadenza), 'dd/MM/yyyy') + (task.ora ? ` ${task.ora.substring(0, 5)}` : '')} />}
-          {task.paziente_nome && <DetailRow label="Paziente" value={task.paziente_nome} />}
-          {task.servizio_nome && <DetailRow label="Servizio" value={task.servizio_nome} />}
-          {task.note && <DetailRow label="Note" value={task.note} />}
+          <DR label="Tipo" value={task.tipo} />
+          <DR label="Priorità" value={`${prio.label} ${task.priorita}`} />
+          <DR label="Assegnato a" value={task.assegnato_a_nome} />
+          {task.assegnato_da && <DR label="Assegnato da" value={task.assegnato_da} />}
+          <DR label="Creato" value={task.data_creazione ? format(new Date(task.data_creazione), 'dd/MM/yyyy HH:mm') : '—'} />
+          {task.scadenza && <DR label="Scadenza" value={format(new Date(task.scadenza), 'dd/MM/yyyy') + (task.ora ? ` ${task.ora.substring(0, 5)}` : '')} />}
+          {task.paziente_nome && <DR label="Paziente" value={task.paziente_nome} />}
+          {task.servizio_nome && <DR label="Servizio" value={task.servizio_nome} />}
+          {task.note && <DR label="Note" value={task.note} />}
           <div className="pt-3">
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-2">Stato</label>
             <div className="grid grid-cols-2 gap-1.5">
@@ -384,9 +414,7 @@ function TaskDetail({ task, tick, onClose, onCambiaStato, onArchivia, onDeleted 
           </div>
         </div>
         <div className="p-4 border-t border-white/5 space-y-1.5">
-          {task.stato === 'Completato' && (
-            <button onClick={() => onArchivia(task.id)} className="w-full py-2 rounded-xl text-xs font-semibold text-dac-gray-400 bg-white/5 hover:bg-white/10 transition-colors">📦 Archivia</button>
-          )}
+          {task.stato === 'Completato' && <button onClick={() => onArchivia(task.id)} className="w-full py-2 rounded-xl text-xs font-semibold text-dac-gray-400 bg-white/5 hover:bg-white/10 transition-colors">📦 Archivia</button>}
           <button onClick={elimina} className="w-full py-2 rounded-xl text-xs font-semibold text-dac-red bg-dac-red/10 hover:bg-dac-red/20 transition-colors">🗑️ Elimina</button>
         </div>
       </div>
@@ -394,7 +422,7 @@ function TaskDetail({ task, tick, onClose, onCambiaStato, onArchivia, onDeleted 
   )
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DR({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex justify-between items-start py-1 border-b border-white/[0.03]">
       <span className="text-[10px] text-dac-gray-500">{label}</span>
@@ -407,7 +435,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 // NUOVO TASK
 // ═══════════════════════════════════════════════════════════
 function NuovoTaskModal({ operatori, operatoreCorrente, isAdmin, onClose, onSaved }: {
-  operatori: { id: string; nome: string; emoji: string }[]; operatoreCorrente: Operatore; isAdmin: boolean; onClose: () => void; onSaved: () => void
+  operatori: { id: string; nome: string; emoji: string }[]; operatoreCorrente: Operatore; isAdmin: boolean
+  onClose: () => void; onSaved: () => void
 }) {
   const [desc, setDesc] = useState('')
   const [tipo, setTipo] = useState('🎯 Libero')
@@ -448,27 +477,20 @@ function NuovoTaskModal({ operatori, operatoreCorrente, isAdmin, onClose, onSave
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Tipo</label>
-              <select value={tipo} onChange={e => setTipo(e.target.value)} className="input-field">
-                {TIPI.map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
+              <select value={tipo} onChange={e => setTipo(e.target.value)} className="input-field">{TIPI.map(t => <option key={t} value={t}>{t}</option>)}</select>
             </div>
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Priorità</label>
-              <select value={priorita} onChange={e => setPriorita(e.target.value)} className="input-field">
-                {PRIORITA.map(p => <option key={p} value={p}>{PRIO_CONFIG[p].label} {p}</option>)}
-              </select>
+              <select value={priorita} onChange={e => setPriorita(e.target.value)} className="input-field">{PRIORITA.map(p => <option key={p} value={p}>{PRIO_CONFIG[p].label} {p}</option>)}</select>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Assegnato a</label>
-              {isAdmin ? (
-                <select value={assegnatoA} onChange={e => setAssegnatoA(e.target.value)} className="input-field">
-                  {operatori.map(o => <option key={o.id} value={o.nome}>{o.emoji} {o.nome}</option>)}
-                </select>
-              ) : (
-                <div className="input-field bg-white/3 text-dac-gray-400 cursor-not-allowed">{operatoreCorrente.emoji} {operatoreCorrente.nome}</div>
-              )}
+              {isAdmin
+                ? <select value={assegnatoA} onChange={e => setAssegnatoA(e.target.value)} className="input-field">{operatori.map(o => <option key={o.id} value={o.nome}>{o.emoji} {o.nome}</option>)}</select>
+                : <div className="input-field bg-white/3 text-dac-gray-400">{operatoreCorrente.emoji} {operatoreCorrente.nome}</div>
+              }
             </div>
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Scadenza</label>
