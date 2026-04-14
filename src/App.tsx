@@ -26,7 +26,7 @@ export default function App() {
 
   // Non autenticato → Login
   if (!auth.isAuthenticated) {
-    return <LoginSplash onLoginGoogle={auth.loginGoogle} error={auth.error} />
+    return <LoginSplash onLoginEmail={auth.loginEmail} error={auth.error} loading={auth.loading} />
   }
 
   // Autenticato ma nessun operatore selezionato → selezione profilo
