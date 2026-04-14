@@ -194,7 +194,7 @@ function OverviewTab({ totRicavi, totCosti, margine, marginePct, varRicavi, varC
               <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
               <XAxis dataKey="mese" tick={{ fill: CHART_THEME.text, fontSize: 10 }} />
               <YAxis tick={{ fill: CHART_THEME.text, fontSize: 10 }} tickFormatter={v => `€${(v / 1000).toFixed(0)}k`} />
-              <Tooltip contentStyle={{ background: CHART_THEME.tooltip, border: '1px solid #2e3a50', borderRadius: 8, fontSize: 11 }} labelStyle={{ color: '#fff' }} formatter={(v: number) => [`€${v.toLocaleString('it-IT')}`, '']} />
+              <Tooltip contentStyle={{ background: CHART_THEME.tooltip, border: '1px solid #2e3a50', borderRadius: 8, fontSize: 11 }} labelStyle={{ color: '#fff' }} formatter={(v: any) => `€${Number(v).toLocaleString('it-IT')}`} />
               <Area type="monotone" dataKey="ricavi" stroke="#27ae60" strokeWidth={2} fill="url(#gRic)" name="Ricavi" />
               <Area type="monotone" dataKey="costi" stroke="#e74c3c" strokeWidth={2} fill="url(#gCos)" name="Costi" />
               <Line type="monotone" dataKey="margine" stroke="#2e86c1" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Margine" />
@@ -211,7 +211,7 @@ function OverviewTab({ totRicavi, totCosti, margine, marginePct, varRicavi, varC
                   <Pie data={perReparto} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2}>
                     {perReparto.map((entry: any, i: number) => <Cell key={i} fill={entry.color} />)}
                   </Pie>
-                  <Tooltip contentStyle={{ background: CHART_THEME.tooltip, border: '1px solid #2e3a50', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [`€${v.toLocaleString('it-IT')}`, '']} />
+                  <Tooltip contentStyle={{ background: CHART_THEME.tooltip, border: '1px solid #2e3a50', borderRadius: 8, fontSize: 11 }} formatter={(v: any) => `€${Number(v).toLocaleString('it-IT')}`} />
                 </RPieChart>
               </ResponsiveContainer>
               <div className="space-y-1.5 mt-2">
@@ -286,7 +286,7 @@ function PLTab({ trendData, costiPerCat, totRicavi, totCosti, margine, pfEntrate
             <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
             <XAxis dataKey="mese" tick={{ fill: CHART_THEME.text, fontSize: 10 }} />
             <YAxis tick={{ fill: CHART_THEME.text, fontSize: 10 }} tickFormatter={v => `€${(v / 1000).toFixed(0)}k`} />
-            <Tooltip contentStyle={{ background: CHART_THEME.tooltip, border: '1px solid #2e3a50', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [`€${v.toLocaleString('it-IT')}`, '']} />
+            <Tooltip contentStyle={{ background: CHART_THEME.tooltip, border: '1px solid #2e3a50', borderRadius: 8, fontSize: 11 }} formatter={(v: any) => `€${Number(v).toLocaleString('it-IT')}`} />
             <Bar dataKey="margine" radius={[4, 4, 0, 0]} name="Margine">
               {trendData.map((entry: any, i: number) => <Cell key={i} fill={entry.margine >= 0 ? '#27ae60' : '#e74c3c'} />)}
             </Bar>
@@ -404,7 +404,7 @@ function CashFlowTab({ ricaviPeriodo, costiPeriodo, pfEntrate, pfUscite, trendDa
               <Pie data={metodoData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={45} outerRadius={75} paddingAngle={2}>
                 {metodoData.map((_, i) => <Cell key={i} fill={METODO_COLORS[i % METODO_COLORS.length]} />)}
               </Pie>
-              <Tooltip contentStyle={{ background: CHART_THEME.tooltip, border: '1px solid #2e3a50', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [`€${v.toLocaleString('it-IT')}`, '']} />
+              <Tooltip contentStyle={{ background: CHART_THEME.tooltip, border: '1px solid #2e3a50', borderRadius: 8, fontSize: 11 }} formatter={(v: any) => `€${Number(v).toLocaleString('it-IT')}`} />
             </RPieChart>
           </ResponsiveContainer>
           <div className="space-y-1.5 mt-2">
@@ -449,7 +449,7 @@ function CashFlowTab({ ricaviPeriodo, costiPeriodo, pfEntrate, pfUscite, trendDa
             <CartesianGrid strokeDasharray="3 3" stroke={CHART_THEME.grid} />
             <XAxis dataKey="mese" tick={{ fill: CHART_THEME.text, fontSize: 10 }} />
             <YAxis tick={{ fill: CHART_THEME.text, fontSize: 10 }} tickFormatter={v => `€${(v / 1000).toFixed(0)}k`} />
-            <Tooltip contentStyle={{ background: CHART_THEME.tooltip, border: '1px solid #2e3a50', borderRadius: 8, fontSize: 11 }} formatter={(v: number) => [`€${v.toLocaleString('it-IT')}`, '']} />
+            <Tooltip contentStyle={{ background: CHART_THEME.tooltip, border: '1px solid #2e3a50', borderRadius: 8, fontSize: 11 }} formatter={(v: any) => `€${Number(v).toLocaleString('it-IT')}`} />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 10 }} />
             <Bar dataKey="ricavi" fill="#27ae60" name="Entrate" radius={[4, 4, 0, 0]} />
             <Bar dataKey="costi" fill="#e74c3c" name="Uscite" radius={[4, 4, 0, 0]} />
