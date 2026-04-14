@@ -19,7 +19,6 @@ interface AuthState {
   user: User | null
   session: Session | null
   operatore: Operatore | null
-  operatori: Operatore[]
   loading: boolean
   error: string | null
 }
@@ -29,17 +28,15 @@ export function useAuth() {
     user: null,
     session: null,
     operatore: null,
-    operatori: [],
     loading: true,
     error: null,
   })
 
-  // Carica sessione iniziale
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setState(s => ({ ...s, session, user: session?.user ?? null }))
       if (session?.user) {
-        loadOperatori()
+        matchOperatore(session.user)
       } else {
         setState(s => ({ ...s, loading: false }))
       }
@@ -48,53 +45,73 @@ export function useAuth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setState(s => ({ ...s, session, user: session?.user ?? null }))
       if (session?.user) {
-        loadOperatori()
+        matchOperatore(session.user)
       } else {
-        setState(s => ({ ...s, operatore: null, operatori: [], loading: false }))
+        setState(s => ({ ...s, operatore: null, loading: false }))
       }
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
-  const loadOperatori = async () => {
-    const { data, error } = await supabase
-      .from('operatori')
-      .select('*')
-      .eq('attivo', true)
-      .order('nome')
-
-    if (error) {
-      setState(s => ({ ...s, error: error.message, loading: false }))
+  // Cerca operatore per email. Se non esiste, ne crea uno nuovo.
+  async function matchOperatore(user: User) {
+    const email = user.email
+    if (!email) {
+      setState(s => ({ ...s, loading: false, error: 'Nessuna email associata all\'account' }))
       return
     }
 
-    // Controlla se c'è un operatore salvato in localStorage
-    const savedId = localStorage.getItem('dac_operatore_id')
-    const savedOp = data?.find(o => o.id === savedId) ?? null
+    // Cerca operatore esistente con questa email
+    const { data: existing } = await supabase
+      .from('operatori')
+      .select('*')
+      .eq('email', email)
+      .eq('attivo', true)
+      .maybeSingle()
 
-    setState(s => ({
-      ...s,
-      operatori: data ?? [],
-      operatore: savedOp,
-      loading: false,
-    }))
+    if (existing) {
+      // Collega auth_user_id se non ancora collegato
+      if (!existing.auth_user_id) {
+        await supabase
+          .from('operatori')
+          .update({ auth_user_id: user.id })
+          .eq('id', existing.id)
+      }
+      setState(s => ({ ...s, operatore: existing, loading: false }))
+      return
+    }
+
+    // Non trovato → crea nuovo operatore dall'email
+    const nomeCompleto = user.user_metadata?.full_name || email.split('@')[0]
+    const parti = nomeCompleto.split(' ')
+    const nome = parti[0] || nomeCompleto
+    const cognome = parti.slice(1).join(' ') || null
+
+    const { data: nuovo, error } = await supabase
+      .from('operatori')
+      .insert({
+        auth_user_id: user.id,
+        nome: nome,
+        cognome: cognome,
+        email: email,
+        ruolo: 'operatore',
+        emoji: '👤',
+        colore: '#EBF5FB',
+        colore_bordo: '#3498DB',
+        attivo: true,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      setState(s => ({ ...s, loading: false, error: 'Errore creazione profilo: ' + error.message }))
+      return
+    }
+
+    setState(s => ({ ...s, operatore: nuovo, loading: false }))
   }
 
-  const loginGoogle = useCallback(async () => {
-    setState(s => ({ ...s, loading: true, error: null }))
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    })
-    if (error) {
-      setState(s => ({ ...s, error: error.message, loading: false }))
-    }
-  }, [])
-
-  // Login con email/password (fallback per dev)
   const loginEmail = useCallback(async (email: string, password: string) => {
     setState(s => ({ ...s, loading: true, error: null }))
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -103,30 +120,16 @@ export function useAuth() {
     }
   }, [])
 
-  const selectOperatore = useCallback((op: Operatore) => {
-    localStorage.setItem('dac_operatore_id', op.id)
-    setState(s => ({ ...s, operatore: op }))
-  }, [])
-
   const logout = useCallback(async () => {
-    localStorage.removeItem('dac_operatore_id')
-    setState(s => ({ ...s, operatore: null }))
-  }, [])
-
-  const logoutFull = useCallback(async () => {
-    localStorage.removeItem('dac_operatore_id')
     await supabase.auth.signOut()
-    setState(s => ({ ...s, operatore: null, user: null, session: null, operatori: [] }))
+    setState({ user: null, session: null, operatore: null, loading: false, error: null })
   }, [])
 
   return {
     ...state,
-    loginGoogle,
     loginEmail,
-    selectOperatore,
     logout,
-    logoutFull,
     isAuthenticated: !!state.session,
-    isOperatoreSelected: !!state.operatore,
+    isReady: !!state.operatore,
   }
 }
