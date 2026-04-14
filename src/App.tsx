@@ -5,6 +5,7 @@ import { Layout } from '@/components/Layout'
 import { Dashboard } from '@/pages/Dashboard'
 import { Agenda } from '@/pages/Agenda'
 import { Pazienti } from '@/pages/Pazienti'
+import { TaskManager } from '@/pages/TaskManager'
 
 export default function App() {
   const auth = useAuth()
@@ -45,7 +46,7 @@ export default function App() {
         <Route path="/" element={<Dashboard operatore={auth.operatore!} />} />
         <Route path="/agenda" element={<Agenda operatore={auth.operatore!} />} />
         <Route path="/pazienti" element={<Pazienti operatore={auth.operatore!} />} />
-        <Route path="/task" element={<PlaceholderPage title="✅ Task Manager" />} />
+        <Route path="/task" element={<TaskManager operatore={auth.operatore!} />} />
         <Route path="/pacchetti" element={<PlaceholderPage title="📦 Pacchetti" />} />
         <Route path="/ricavi" element={<PlaceholderPage title="💰 Ricavi" />} />
         <Route path="/costi" element={<PlaceholderPage title="📉 Costi" />} />
