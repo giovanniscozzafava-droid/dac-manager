@@ -4,7 +4,7 @@ import type { Operatore } from '@/hooks/useAuth'
 import { format } from 'date-fns'
 import {
   CheckSquare, Plus, X, Clock, AlertTriangle,
-  Check, Search
+  Check, Search, Eye, User
 } from 'lucide-react'
 
 interface Task {
@@ -38,6 +38,10 @@ const TIPI = [
   '📄 Amministrazione', '🎯 Libero'
 ]
 
+// Admin: vedono i task di tutti
+const ADMIN_EMAILS = ['giovanni.scozzafava@gmail.com']
+const ADMIN_NOMI = ['Daniela', 'Teresa', 'Giovanni (Tester)']
+
 const STATO_CONFIG: Record<string, { colore: string; bg: string; icon: string }> = {
   'Da fare':    { colore: '#e74c3c', bg: 'rgba(231,76,60,0.08)', icon: '🔴' },
   'In corso':   { colore: '#f39c12', bg: 'rgba(243,156,18,0.08)', icon: '🟡' },
@@ -52,7 +56,6 @@ const PRIO_CONFIG: Record<string, { colore: string; label: string }> = {
   'Bassa':   { colore: '#95a5a6', label: '⚪' },
 }
 
-// ── COUNTDOWN HELPER ──
 function getCountdown(scadenza: string | null, ora: string | null): {
   label: string; color: string; urgente: boolean; scaduto: boolean
 } | null {
@@ -71,15 +74,11 @@ function getCountdown(scadenza: string | null, ora: string | null): {
   const diffG = Math.floor(diffMs / 86400000)
 
   if (diffMs < 0) {
-    // Scaduto
-    const overMin = Math.abs(diffMin)
-    const overH = Math.abs(diffH)
-    const overG = Math.abs(diffG)
+    const overH = Math.abs(diffH); const overG = Math.abs(diffG); const overMin = Math.abs(diffMin)
     if (overG > 0) return { label: `⏰ −${overG}g ${overH % 24}h`, color: '#e74c3c', urgente: true, scaduto: true }
     if (overH > 0) return { label: `⏰ −${overH}h ${overMin % 60}m`, color: '#e74c3c', urgente: true, scaduto: true }
     return { label: `⏰ −${overMin}m`, color: '#e74c3c', urgente: true, scaduto: true }
   }
-
   if (diffG > 7) return { label: `${diffG}g`, color: '#95a5a6', urgente: false, scaduto: false }
   if (diffG > 1) return { label: `${diffG}g ${diffH % 24}h`, color: '#f39c12', urgente: false, scaduto: false }
   if (diffG === 1) return { label: `1g ${diffH % 24}h`, color: '#e67e22', urgente: true, scaduto: false }
@@ -89,7 +88,7 @@ function getCountdown(scadenza: string | null, ora: string | null): {
 
 export function TaskManager({ operatore }: Props) {
   const [tasks, setTasks] = useState<Task[]>([])
-  const [operatori, setOperatori] = useState<{ id: string; nome: string; emoji: string }[]>([])
+  const [operatori, setOperatori] = useState<{ id: string; nome: string; emoji: string; email: string | null }[]>([])
   const [loading, setLoading] = useState(true)
   const [filterPersona, setFilterPersona] = useState('')
   const [filterPriorita, setFilterPriorita] = useState('')
@@ -97,21 +96,35 @@ export function TaskManager({ operatore }: Props) {
   const [searchQ, setSearchQ] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [selected, setSelected] = useState<Task | null>(null)
-  const [tick, setTick] = useState(0) // per aggiornare countdown
+  const [tick, setTick] = useState(0)
+  const [viewAll, setViewAll] = useState(false) // admin: vedi tutti
+
+  // Controlla se è admin
+  const isAdmin = operatore.ruolo === 'admin' ||
+    ADMIN_EMAILS.includes(operatore.email ?? '') ||
+    ADMIN_NOMI.includes(operatore.nome)
 
   const loadTasks = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('task').select('*').neq('stato', 'Archiviato').order('scadenza', { ascending: true, nullsFirst: false })
+    let query = supabase.from('task').select('*').neq('stato', 'Archiviato')
+
+    // Se NON è admin, mostra solo i propri task
+    if (!isAdmin) {
+      query = query.eq('assegnato_a_nome', operatore.nome)
+    }
+
+    const { data } = await query.order('scadenza', { ascending: true, nullsFirst: false })
     setTasks(data ?? [])
     setLoading(false)
-  }, [])
+  }, [isAdmin, operatore.nome])
 
   useEffect(() => { loadTasks() }, [loadTasks])
   useEffect(() => {
-    supabase.from('operatori').select('id, nome, emoji').eq('attivo', true).order('nome').then(({ data }) => setOperatori(data ?? []))
+    supabase.from('operatori').select('id, nome, emoji, email').eq('attivo', true).order('nome')
+      .then(({ data }) => setOperatori(data ?? []))
   }, [])
 
-  // Countdown tick ogni 30 secondi
+  // Countdown tick
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 30000)
     return () => clearInterval(interval)
@@ -123,12 +136,13 @@ export function TaskManager({ operatore }: Props) {
     return () => { supabase.removeChannel(ch) }
   }, [loadTasks])
 
-  const oggi = new Date(); oggi.setHours(0, 0, 0, 0)
   function isScaduto(t: Task) { return !!getCountdown(t.scadenza, t.ora)?.scaduto && t.stato !== 'Completato' }
 
   function filteredTasks(stato: string) {
     return tasks.filter(t => {
       if (t.stato !== stato) return false
+      // Admin con viewAll=false: mostra solo i propri
+      if (isAdmin && !viewAll && filterPersona === '' && t.assegnato_a_nome !== operatore.nome) return false
       if (filterPersona && t.assegnato_a_nome !== filterPersona) return false
       if (filterPriorita && t.priorita !== filterPriorita) return false
       if (soloScaduti && !isScaduto(t)) return false
@@ -150,6 +164,8 @@ export function TaskManager({ operatore }: Props) {
     setSelected(null); loadTasks()
   }
 
+  const myTasks = tasks.filter(t => t.assegnato_a_nome === operatore.nome && t.stato !== 'Completato')
+  const myScaduti = myTasks.filter(t => isScaduto(t))
   const totScaduti = tasks.filter(t => isScaduto(t)).length
 
   return (
@@ -159,29 +175,50 @@ export function TaskManager({ operatore }: Props) {
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2">
             <CheckSquare size={18} className="text-dac-accent" />
-            <h1 className="font-display font-bold text-lg text-white">Task Manager</h1>
-            {totScaduti > 0 && (
+            <h1 className="font-display font-bold text-lg text-white">
+              {isAdmin && viewAll ? 'Task — Tutti' : `Task — ${operatore.nome}`}
+            </h1>
+            {/* Badge personali */}
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-white/5 text-dac-gray-300">
+              {myTasks.length} aperti
+            </span>
+            {myScaduti.length > 0 && (
               <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-dac-red/15 text-dac-red animate-pulse">
-                {totScaduti} scadut{totScaduti !== 1 ? 'i' : 'o'}
+                {myScaduti.length} scadut{myScaduti.length !== 1 ? 'i' : 'o'}
               </span>
             )}
           </div>
-          <button onClick={() => setShowNew(true)}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-dac-green text-white hover:opacity-90 transition-opacity">
-            <Plus size={14} /> Nuovo Task
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Toggle admin: vedi tutti / solo miei */}
+            {isAdmin && (
+              <button onClick={() => setViewAll(!viewAll)}
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all
+                  ${viewAll ? 'bg-dac-accent/15 border-dac-accent/30 text-dac-accent' : 'bg-white/5 border-white/10 text-dac-gray-400 hover:text-white'}`}>
+                <Eye size={13} />
+                {viewAll ? '👥 Tutti' : '👤 Solo miei'}
+              </button>
+            )}
+            <button onClick={() => setShowNew(true)}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-dac-green text-white hover:opacity-90 transition-opacity">
+              <Plus size={14} /> Nuovo
+            </button>
+          </div>
         </div>
+
+        {/* Filtri — filtro persona solo se admin + viewAll */}
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <div className="relative min-w-[160px]">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dac-gray-500" />
             <input type="text" value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="Cerca..."
               className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs placeholder:text-dac-gray-500 focus:outline-none focus:border-dac-accent/50" />
           </div>
-          <select value={filterPersona} onChange={e => setFilterPersona(e.target.value)}
-            className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white focus:outline-none [&>option]:bg-dac-deep">
-            <option value="">👥 Tutti</option>
-            {operatori.map(o => <option key={o.id} value={o.nome}>{o.emoji} {o.nome}</option>)}
-          </select>
+          {isAdmin && viewAll && (
+            <select value={filterPersona} onChange={e => setFilterPersona(e.target.value)}
+              className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white focus:outline-none [&>option]:bg-dac-deep">
+              <option value="">👥 Tutti gli operatori</option>
+              {operatori.map(o => <option key={o.id} value={o.nome}>{o.emoji} {o.nome}</option>)}
+            </select>
+          )}
           <select value={filterPriorita} onChange={e => setFilterPriorita(e.target.value)}
             className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white focus:outline-none [&>option]:bg-dac-deep">
             <option value="">Tutte priorità</option>
@@ -190,7 +227,7 @@ export function TaskManager({ operatore }: Props) {
           <button onClick={() => setSoloScaduti(!soloScaduti)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors
               ${soloScaduti ? 'bg-dac-red/15 border-dac-red/30 text-dac-red' : 'bg-white/5 border-white/10 text-dac-gray-400 hover:text-white'}`}>
-            ⚠️ Scaduti
+            ⚠️ Scaduti {isAdmin && viewAll ? `(${totScaduti})` : `(${myScaduti.length})`}
           </button>
         </div>
       </div>
@@ -210,7 +247,7 @@ export function TaskManager({ operatore }: Props) {
                 {loading ? Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 rounded-lg bg-white/3 animate-pulse" />)
                   : columnTasks.length === 0 ? <div className="text-center py-8 text-dac-gray-500 text-[10px]">Nessun task</div>
                   : columnTasks.map(task => (
-                    <TaskCard key={task.id} task={task} tick={tick}
+                    <TaskCard key={task.id} task={task} tick={tick} showAssegnato={isAdmin && viewAll}
                       onClick={() => setSelected(task)}
                       onForward={() => { const idx = STATI.indexOf(task.stato); if (idx < STATI.length - 1) cambiaStato(task.id, STATI[idx + 1]) }}
                       onBack={() => { const idx = STATI.indexOf(task.stato); if (idx > 0) cambiaStato(task.id, STATI[idx - 1]) }}
@@ -224,16 +261,16 @@ export function TaskManager({ operatore }: Props) {
       </div>
 
       {selected && <TaskDetail task={selected} tick={tick} onClose={() => setSelected(null)} onCambiaStato={cambiaStato} onArchivia={archivia} onDeleted={() => { setSelected(null); loadTasks() }} />}
-      {showNew && <NuovoTaskModal operatori={operatori} operatoreCorrente={operatore} onClose={() => setShowNew(false)} onSaved={() => { setShowNew(false); loadTasks() }} />}
+      {showNew && <NuovoTaskModal operatori={operatori} operatoreCorrente={operatore} isAdmin={isAdmin} onClose={() => setShowNew(false)} onSaved={() => { setShowNew(false); loadTasks() }} />}
     </div>
   )
 }
 
 // ═══════════════════════════════════════════════════════════
-// CARD CON COUNTDOWN
+// CARD
 // ═══════════════════════════════════════════════════════════
-function TaskCard({ task, tick, onClick, onForward, onBack }: {
-  task: Task; tick: number; onClick: () => void; onForward: () => void; onBack: () => void
+function TaskCard({ task, tick, showAssegnato, onClick, onForward, onBack }: {
+  task: Task; tick: number; showAssegnato: boolean; onClick: () => void; onForward: () => void; onBack: () => void
 }) {
   const prio = PRIO_CONFIG[task.priorita] ?? PRIO_CONFIG['Media']
   const countdown = task.stato !== 'Completato' ? getCountdown(task.scadenza, task.ora) : null
@@ -242,9 +279,16 @@ function TaskCard({ task, tick, onClick, onForward, onBack }: {
     <div onClick={onClick}
       className={`rounded-lg p-2.5 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 bg-white border-l-[3px] ${countdown?.scaduto ? 'bg-red-50' : ''}`}
       style={{ borderLeftColor: prio.colore }}>
+      {/* Assegnato a — solo in vista admin */}
+      {showAssegnato && (
+        <div className="flex items-center gap-1 mb-1">
+          <User size={9} className="text-gray-400" />
+          <span className="text-[8px] font-bold text-gray-500 uppercase tracking-wider">{task.assegnato_a_nome}</span>
+        </div>
+      )}
       <div className="text-[11px] font-semibold text-gray-800 leading-snug mb-1.5 pr-6 line-clamp-2">{task.descrizione}</div>
 
-      {/* Countdown badge */}
+      {/* Countdown */}
       {countdown && (
         <div className="mb-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold"
           style={{ background: countdown.color + '15', color: countdown.color }}>
@@ -263,7 +307,7 @@ function TaskCard({ task, tick, onClick, onForward, onBack }: {
       </div>
 
       <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-        <span className="text-[9px] text-gray-400">{task.assegnato_a_nome}</span>
+        <span className="text-[9px] text-gray-400">{!showAssegnato ? task.assegnato_da ? `da ${task.assegnato_da}` : '' : ''}</span>
         <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
           {task.stato !== 'Da fare' && (
             <button onClick={onBack} className="px-1.5 py-0.5 rounded text-[10px] text-gray-400 hover:bg-amber-50 hover:text-amber-600 transition-colors">◀</button>
@@ -278,7 +322,7 @@ function TaskCard({ task, tick, onClick, onForward, onBack }: {
 }
 
 // ═══════════════════════════════════════════════════════════
-// DETAIL CON COUNTDOWN
+// DETAIL
 // ═══════════════════════════════════════════════════════════
 function TaskDetail({ task, tick, onClose, onCambiaStato, onArchivia, onDeleted }: {
   task: Task; tick: number; onClose: () => void
@@ -302,22 +346,17 @@ function TaskDetail({ task, tick, onClose, onCambiaStato, onArchivia, onDeleted 
             <button onClick={onClose} className="p-1 rounded-md hover:bg-white/10 text-dac-gray-400"><X size={16} /></button>
           </div>
           <h3 className="font-display font-bold text-white text-sm leading-snug">{task.descrizione}</h3>
-
-          {/* Countdown grande */}
           {countdown && (
             <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-xl"
               style={{ background: countdown.color + '15', border: `1px solid ${countdown.color}30` }}>
               <Clock size={16} style={{ color: countdown.color }} />
               <div>
                 <div className="text-sm font-bold" style={{ color: countdown.color }}>{countdown.label}</div>
-                <div className="text-[9px]" style={{ color: countdown.color, opacity: 0.7 }}>
-                  {countdown.scaduto ? 'Scaduto' : 'Tempo rimanente'}
-                </div>
+                <div className="text-[9px]" style={{ color: countdown.color, opacity: 0.7 }}>{countdown.scaduto ? 'Scaduto' : 'Tempo rimanente'}</div>
               </div>
             </div>
           )}
         </div>
-
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           <DetailRow label="Tipo" value={task.tipo} />
           <DetailRow label="Priorità" value={`${prio.label} ${task.priorita}`} />
@@ -328,7 +367,6 @@ function TaskDetail({ task, tick, onClose, onCambiaStato, onArchivia, onDeleted 
           {task.paziente_nome && <DetailRow label="Paziente" value={task.paziente_nome} />}
           {task.servizio_nome && <DetailRow label="Servizio" value={task.servizio_nome} />}
           {task.note && <DetailRow label="Note" value={task.note} />}
-
           <div className="pt-3">
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-2">Stato</label>
             <div className="grid grid-cols-2 gap-1.5">
@@ -345,7 +383,6 @@ function TaskDetail({ task, tick, onClose, onCambiaStato, onArchivia, onDeleted 
             </div>
           </div>
         </div>
-
         <div className="p-4 border-t border-white/5 space-y-1.5">
           {task.stato === 'Completato' && (
             <button onClick={() => onArchivia(task.id)} className="w-full py-2 rounded-xl text-xs font-semibold text-dac-gray-400 bg-white/5 hover:bg-white/10 transition-colors">📦 Archivia</button>
@@ -369,8 +406,8 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 // ═══════════════════════════════════════════════════════════
 // NUOVO TASK
 // ═══════════════════════════════════════════════════════════
-function NuovoTaskModal({ operatori, operatoreCorrente, onClose, onSaved }: {
-  operatori: { id: string; nome: string; emoji: string }[]; operatoreCorrente: Operatore; onClose: () => void; onSaved: () => void
+function NuovoTaskModal({ operatori, operatoreCorrente, isAdmin, onClose, onSaved }: {
+  operatori: { id: string; nome: string; emoji: string }[]; operatoreCorrente: Operatore; isAdmin: boolean; onClose: () => void; onSaved: () => void
 }) {
   const [desc, setDesc] = useState('')
   const [tipo, setTipo] = useState('🎯 Libero')
@@ -425,9 +462,13 @@ function NuovoTaskModal({ operatori, operatoreCorrente, onClose, onSaved }: {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Assegnato a</label>
-              <select value={assegnatoA} onChange={e => setAssegnatoA(e.target.value)} className="input-field">
-                {operatori.map(o => <option key={o.id} value={o.nome}>{o.emoji} {o.nome}</option>)}
-              </select>
+              {isAdmin ? (
+                <select value={assegnatoA} onChange={e => setAssegnatoA(e.target.value)} className="input-field">
+                  {operatori.map(o => <option key={o.id} value={o.nome}>{o.emoji} {o.nome}</option>)}
+                </select>
+              ) : (
+                <div className="input-field bg-white/3 text-dac-gray-400 cursor-not-allowed">{operatoreCorrente.emoji} {operatoreCorrente.nome}</div>
+              )}
             </div>
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Scadenza</label>
