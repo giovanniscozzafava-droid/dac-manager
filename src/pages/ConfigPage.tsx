@@ -1,4 +1,3 @@
-import { AutomazioniPanel } from "./AutomazioniPanel"
 import { AutomazioniPanel } from './AutomazioniPanel'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
