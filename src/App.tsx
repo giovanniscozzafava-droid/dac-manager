@@ -3,11 +3,11 @@ import { useAuth } from '@/hooks/useAuth'
 import { LoginSplash } from '@/components/LoginSplash'
 import { Layout } from '@/components/Layout'
 import { Dashboard } from '@/pages/Dashboard'
+import { Agenda } from '@/pages/Agenda'
 
 export default function App() {
   const auth = useAuth()
 
-  // Loading
   if (auth.loading) {
     return (
       <div className="h-screen flex items-center justify-center bg-dac-navy noise-bg">
@@ -23,12 +23,10 @@ export default function App() {
     )
   }
 
-  // Non autenticato → Login
   if (!auth.isAuthenticated) {
     return <LoginSplash onLoginEmail={auth.loginEmail} error={auth.error} loading={auth.loading} />
   }
 
-  // Autenticato ma profilo non ancora caricato
   if (!auth.isReady) {
     return (
       <div className="h-screen flex items-center justify-center bg-dac-navy noise-bg">
@@ -40,12 +38,11 @@ export default function App() {
     )
   }
 
-  // Tutto OK → App
   return (
     <Layout operatore={auth.operatore!} onLogout={auth.logout} onLogoutFull={auth.logout}>
       <Routes>
         <Route path="/" element={<Dashboard operatore={auth.operatore!} />} />
-        <Route path="/agenda" element={<PlaceholderPage title="📅 Agenda" />} />
+        <Route path="/agenda" element={<Agenda operatore={auth.operatore!} />} />
         <Route path="/pazienti" element={<PlaceholderPage title="👥 Pazienti" />} />
         <Route path="/task" element={<PlaceholderPage title="✅ Task Manager" />} />
         <Route path="/pacchetti" element={<PlaceholderPage title="📦 Pacchetti" />} />
