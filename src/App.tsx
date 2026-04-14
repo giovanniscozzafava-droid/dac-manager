@@ -12,6 +12,7 @@ import { AnamnesiPage } from '@/pages/Anamnesi'
 import { PacchettiPage } from '@/pages/PacchettiPage'
 import { RicaviPage } from '@/pages/RicaviPage'
 import { CostiPage } from '@/pages/CostiPage'
+import { ParafarmaciaPage } from '@/pages/ParafarmaciaPage'
 
 export default function App() {
   const auth = useAuth()
@@ -32,7 +33,7 @@ export default function App() {
         <Route path="/pacchetti" element={<PacchettiPage operatore={auth.operatore!} />} />
         <Route path="/ricavi" element={<RicaviPage operatore={auth.operatore!} />} />
         <Route path="/costi" element={<CostiPage operatore={auth.operatore!} />} />
-        <Route path="/parafarmacia" element={<PH title="🏪 Parafarmacia" />} />
+        <Route path="/parafarmacia" element={<ParafarmaciaPage operatore={auth.operatore!} />} />
         <Route path="/config" element={<PH title="⚙️ Configurazione" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
