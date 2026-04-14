@@ -2,10 +2,9 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
 import { format } from 'date-fns'
-import { it } from 'date-fns/locale'
 import {
-  CheckSquare, Plus, X, Filter, Clock, User, AlertTriangle,
-  Check, ChevronRight, ChevronLeft, Trash2, Archive, Search
+  CheckSquare, Plus, X, Clock, AlertTriangle,
+  Check, Search
 } from 'lucide-react'
 
 interface Task {
@@ -53,6 +52,41 @@ const PRIO_CONFIG: Record<string, { colore: string; label: string }> = {
   'Bassa':   { colore: '#95a5a6', label: '⚪' },
 }
 
+// ── COUNTDOWN HELPER ──
+function getCountdown(scadenza: string | null, ora: string | null): {
+  label: string; color: string; urgente: boolean; scaduto: boolean
+} | null {
+  if (!scadenza) return null
+  const now = new Date()
+  const target = new Date(scadenza)
+  if (ora) {
+    const [h, m] = ora.split(':').map(Number)
+    target.setHours(h || 9, m || 0, 0, 0)
+  } else {
+    target.setHours(23, 59, 59, 0)
+  }
+  const diffMs = target.getTime() - now.getTime()
+  const diffMin = Math.floor(diffMs / 60000)
+  const diffH = Math.floor(diffMs / 3600000)
+  const diffG = Math.floor(diffMs / 86400000)
+
+  if (diffMs < 0) {
+    // Scaduto
+    const overMin = Math.abs(diffMin)
+    const overH = Math.abs(diffH)
+    const overG = Math.abs(diffG)
+    if (overG > 0) return { label: `⏰ −${overG}g ${overH % 24}h`, color: '#e74c3c', urgente: true, scaduto: true }
+    if (overH > 0) return { label: `⏰ −${overH}h ${overMin % 60}m`, color: '#e74c3c', urgente: true, scaduto: true }
+    return { label: `⏰ −${overMin}m`, color: '#e74c3c', urgente: true, scaduto: true }
+  }
+
+  if (diffG > 7) return { label: `${diffG}g`, color: '#95a5a6', urgente: false, scaduto: false }
+  if (diffG > 1) return { label: `${diffG}g ${diffH % 24}h`, color: '#f39c12', urgente: false, scaduto: false }
+  if (diffG === 1) return { label: `1g ${diffH % 24}h`, color: '#e67e22', urgente: true, scaduto: false }
+  if (diffH > 0) return { label: `${diffH}h ${diffMin % 60}m`, color: '#e74c3c', urgente: true, scaduto: false }
+  return { label: `${diffMin}m`, color: '#e74c3c', urgente: true, scaduto: false }
+}
+
 export function TaskManager({ operatore }: Props) {
   const [tasks, setTasks] = useState<Task[]>([])
   const [operatori, setOperatori] = useState<{ id: string; nome: string; emoji: string }[]>([])
@@ -63,42 +97,35 @@ export function TaskManager({ operatore }: Props) {
   const [searchQ, setSearchQ] = useState('')
   const [showNew, setShowNew] = useState(false)
   const [selected, setSelected] = useState<Task | null>(null)
+  const [tick, setTick] = useState(0) // per aggiornare countdown
 
   const loadTasks = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
-      .from('task')
-      .select('*')
-      .neq('stato', 'Archiviato')
-      .order('scadenza', { ascending: true, nullsFirst: false })
+    const { data } = await supabase.from('task').select('*').neq('stato', 'Archiviato').order('scadenza', { ascending: true, nullsFirst: false })
     setTasks(data ?? [])
     setLoading(false)
   }, [])
 
   useEffect(() => { loadTasks() }, [loadTasks])
-
   useEffect(() => {
-    supabase.from('operatori').select('id, nome, emoji').eq('attivo', true).order('nome')
-      .then(({ data }) => setOperatori(data ?? []))
+    supabase.from('operatori').select('id, nome, emoji').eq('attivo', true).order('nome').then(({ data }) => setOperatori(data ?? []))
+  }, [])
+
+  // Countdown tick ogni 30 secondi
+  useEffect(() => {
+    const interval = setInterval(() => setTick(t => t + 1), 30000)
+    return () => clearInterval(interval)
   }, [])
 
   // Realtime
   useEffect(() => {
-    const ch = supabase.channel('task-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'task' }, () => loadTasks())
-      .subscribe()
+    const ch = supabase.channel('task-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'task' }, () => loadTasks()).subscribe()
     return () => { supabase.removeChannel(ch) }
   }, [loadTasks])
 
-  const oggi = new Date()
-  oggi.setHours(0, 0, 0, 0)
+  const oggi = new Date(); oggi.setHours(0, 0, 0, 0)
+  function isScaduto(t: Task) { return !!getCountdown(t.scadenza, t.ora)?.scaduto && t.stato !== 'Completato' }
 
-  function isScaduto(t: Task) {
-    if (!t.scadenza) return false
-    return new Date(t.scadenza) < oggi && t.stato !== 'Completato'
-  }
-
-  // Filtri
   function filteredTasks(stato: string) {
     return tasks.filter(t => {
       if (t.stato !== stato) return false
@@ -107,9 +134,7 @@ export function TaskManager({ operatore }: Props) {
       if (soloScaduti && !isScaduto(t)) return false
       if (searchQ) {
         const q = searchQ.toLowerCase()
-        if (!t.descrizione.toLowerCase().includes(q) &&
-            !(t.paziente_nome?.toLowerCase().includes(q)) &&
-            !(t.codice.toLowerCase().includes(q))) return false
+        if (!t.descrizione.toLowerCase().includes(q) && !(t.paziente_nome?.toLowerCase().includes(q)) && !(t.codice.toLowerCase().includes(q))) return false
       }
       return true
     })
@@ -117,14 +142,12 @@ export function TaskManager({ operatore }: Props) {
 
   async function cambiaStato(taskId: string, nuovoStato: string) {
     await supabase.from('task').update({ stato: nuovoStato }).eq('id', taskId)
-    setSelected(null)
-    loadTasks()
+    setSelected(null); loadTasks()
   }
 
   async function archivia(taskId: string) {
     await supabase.from('task').update({ stato: 'Archiviato' }).eq('id', taskId)
-    setSelected(null)
-    loadTasks()
+    setSelected(null); loadTasks()
   }
 
   const totScaduti = tasks.filter(t => isScaduto(t)).length
@@ -148,15 +171,11 @@ export function TaskManager({ operatore }: Props) {
             <Plus size={14} /> Nuovo Task
           </button>
         </div>
-
-        {/* Filtri */}
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <div className="relative min-w-[160px]">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-dac-gray-500" />
-            <input type="text" value={searchQ} onChange={e => setSearchQ(e.target.value)}
-              placeholder="Cerca..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs
-                placeholder:text-dac-gray-500 focus:outline-none focus:border-dac-accent/50" />
+            <input type="text" value={searchQ} onChange={e => setSearchQ(e.target.value)} placeholder="Cerca..."
+              className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs placeholder:text-dac-gray-500 focus:outline-none focus:border-dac-accent/50" />
           </div>
           <select value={filterPersona} onChange={e => setFilterPersona(e.target.value)}
             className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white focus:outline-none [&>option]:bg-dac-deep">
@@ -182,93 +201,58 @@ export function TaskManager({ operatore }: Props) {
           const config = STATO_CONFIG[stato]
           const columnTasks = filteredTasks(stato)
           return (
-            <div key={stato} className="flex-1 min-w-[220px] max-w-[320px] flex flex-col rounded-xl overflow-hidden"
-              style={{ background: 'rgba(255,255,255,0.02)' }}>
-              {/* Column header */}
-              <div className="px-3 py-2.5 flex items-center justify-between flex-shrink-0"
-                style={{ background: config.bg, borderBottom: `2px solid ${config.colore}30` }}>
-                <span className="text-xs font-bold" style={{ color: config.colore }}>
-                  {config.icon} {stato}
-                </span>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${config.colore}20`, color: config.colore }}>
-                  {columnTasks.length}
-                </span>
+            <div key={stato} className="flex-1 min-w-[220px] max-w-[320px] flex flex-col rounded-xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.02)' }}>
+              <div className="px-3 py-2.5 flex items-center justify-between flex-shrink-0" style={{ background: config.bg, borderBottom: `2px solid ${config.colore}30` }}>
+                <span className="text-xs font-bold" style={{ color: config.colore }}>{config.icon} {stato}</span>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md" style={{ background: `${config.colore}20`, color: config.colore }}>{columnTasks.length}</span>
               </div>
-
-              {/* Cards */}
               <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-                {loading ? (
-                  Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="h-20 rounded-lg bg-white/3 animate-pulse" />
-                  ))
-                ) : columnTasks.length === 0 ? (
-                  <div className="text-center py-8 text-dac-gray-500 text-[10px]">Nessun task</div>
-                ) : (
-                  columnTasks.map(task => (
-                    <TaskCard key={task.id} task={task} isScaduto={isScaduto(task)}
+                {loading ? Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-24 rounded-lg bg-white/3 animate-pulse" />)
+                  : columnTasks.length === 0 ? <div className="text-center py-8 text-dac-gray-500 text-[10px]">Nessun task</div>
+                  : columnTasks.map(task => (
+                    <TaskCard key={task.id} task={task} tick={tick}
                       onClick={() => setSelected(task)}
-                      onForward={() => {
-                        const idx = STATI.indexOf(task.stato)
-                        if (idx < STATI.length - 1) cambiaStato(task.id, STATI[idx + 1])
-                      }}
-                      onBack={() => {
-                        const idx = STATI.indexOf(task.stato)
-                        if (idx > 0) cambiaStato(task.id, STATI[idx - 1])
-                      }}
+                      onForward={() => { const idx = STATI.indexOf(task.stato); if (idx < STATI.length - 1) cambiaStato(task.id, STATI[idx + 1]) }}
+                      onBack={() => { const idx = STATI.indexOf(task.stato); if (idx > 0) cambiaStato(task.id, STATI[idx - 1]) }}
                     />
                   ))
-                )}
+                }
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* Dettaglio */}
-      {selected && (
-        <TaskDetail task={selected} isScaduto={isScaduto(selected)}
-          onClose={() => setSelected(null)}
-          onCambiaStato={cambiaStato}
-          onArchivia={archivia}
-          onDeleted={() => { setSelected(null); loadTasks() }}
-        />
-      )}
-
-      {/* Nuovo */}
-      {showNew && (
-        <NuovoTaskModal operatori={operatori} operatoreCorrente={operatore}
-          onClose={() => setShowNew(false)}
-          onSaved={() => { setShowNew(false); loadTasks() }}
-        />
-      )}
+      {selected && <TaskDetail task={selected} tick={tick} onClose={() => setSelected(null)} onCambiaStato={cambiaStato} onArchivia={archivia} onDeleted={() => { setSelected(null); loadTasks() }} />}
+      {showNew && <NuovoTaskModal operatori={operatori} operatoreCorrente={operatore} onClose={() => setShowNew(false)} onSaved={() => { setShowNew(false); loadTasks() }} />}
     </div>
   )
 }
 
 // ═══════════════════════════════════════════════════════════
-// CARD
+// CARD CON COUNTDOWN
 // ═══════════════════════════════════════════════════════════
-function TaskCard({ task, isScaduto, onClick, onForward, onBack }: {
-  task: Task; isScaduto: boolean; onClick: () => void
-  onForward: () => void; onBack: () => void
+function TaskCard({ task, tick, onClick, onForward, onBack }: {
+  task: Task; tick: number; onClick: () => void; onForward: () => void; onBack: () => void
 }) {
   const prio = PRIO_CONFIG[task.priorita] ?? PRIO_CONFIG['Media']
-  const scadStr = task.scadenza ? format(new Date(task.scadenza), 'dd/MM') : ''
+  const countdown = task.stato !== 'Completato' ? getCountdown(task.scadenza, task.ora) : null
 
   return (
     <div onClick={onClick}
-      className={`rounded-lg p-2.5 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5
-        bg-white border-l-[3px] ${isScaduto ? 'bg-red-50' : ''}`}
+      className={`rounded-lg p-2.5 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 bg-white border-l-[3px] ${countdown?.scaduto ? 'bg-red-50' : ''}`}
       style={{ borderLeftColor: prio.colore }}>
-      {/* Desc */}
-      <div className="text-[11px] font-semibold text-gray-800 leading-snug mb-1.5 pr-8 line-clamp-2">
-        {task.descrizione}
-      </div>
-      {/* Codice */}
-      <div className="absolute top-2 right-2 text-[8px] text-gray-300 font-mono" style={{ position: 'relative', float: 'right', marginTop: '-28px' }}>
-        {task.codice?.substring(4, 15)}
-      </div>
-      {/* Meta */}
+      <div className="text-[11px] font-semibold text-gray-800 leading-snug mb-1.5 pr-6 line-clamp-2">{task.descrizione}</div>
+
+      {/* Countdown badge */}
+      {countdown && (
+        <div className="mb-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold"
+          style={{ background: countdown.color + '15', color: countdown.color }}>
+          <Clock size={9} />
+          {countdown.scaduto ? countdown.label : `⏱ ${countdown.label}`}
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-1 mb-1.5">
         {task.tipo && task.tipo !== '🎯 Libero' && (
           <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-purple-50 text-purple-700">{task.tipo}</span>
@@ -276,13 +260,8 @@ function TaskCard({ task, isScaduto, onClick, onForward, onBack }: {
         {task.paziente_nome && (
           <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-teal-50 text-teal-700">{task.paziente_nome}</span>
         )}
-        {scadStr && (
-          <span className={`px-1.5 py-0.5 rounded text-[8px] font-semibold ${isScaduto ? 'bg-red-100 text-red-700 font-bold' : 'bg-amber-50 text-amber-700'}`}>
-            {isScaduto ? '⚠️' : '📅'} {scadStr}
-          </span>
-        )}
       </div>
-      {/* Actions */}
+
       <div className="flex items-center justify-between pt-1 border-t border-gray-100">
         <span className="text-[9px] text-gray-400">{task.assegnato_a_nome}</span>
         <div className="flex gap-0.5" onClick={e => e.stopPropagation()}>
@@ -299,36 +278,42 @@ function TaskCard({ task, isScaduto, onClick, onForward, onBack }: {
 }
 
 // ═══════════════════════════════════════════════════════════
-// DETAIL
+// DETAIL CON COUNTDOWN
 // ═══════════════════════════════════════════════════════════
-function TaskDetail({ task, isScaduto, onClose, onCambiaStato, onArchivia, onDeleted }: {
-  task: Task; isScaduto: boolean; onClose: () => void
-  onCambiaStato: (id: string, stato: string) => void
-  onArchivia: (id: string) => void
-  onDeleted: () => void
+function TaskDetail({ task, tick, onClose, onCambiaStato, onArchivia, onDeleted }: {
+  task: Task; tick: number; onClose: () => void
+  onCambiaStato: (id: string, stato: string) => void; onArchivia: (id: string) => void; onDeleted: () => void
 }) {
   const prio = PRIO_CONFIG[task.priorita] ?? PRIO_CONFIG['Media']
+  const countdown = task.stato !== 'Completato' ? getCountdown(task.scadenza, task.ora) : null
 
   async function elimina() {
     if (!confirm('Eliminare questo task?')) return
-    await supabase.from('task').delete().eq('id', task.id)
-    onDeleted()
+    await supabase.from('task').delete().eq('id', task.id); onDeleted()
   }
 
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
       <div className="fixed top-0 right-0 z-50 w-80 h-full bg-dac-card border-l border-white/10 shadow-2xl flex flex-col animate-slide-in-right">
-        <div className="px-4 py-4 border-b border-white/5"
-          style={{ background: `linear-gradient(135deg, ${prio.colore}20, transparent)` }}>
+        <div className="px-4 py-4 border-b border-white/5" style={{ background: `linear-gradient(135deg, ${prio.colore}20, transparent)` }}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-mono text-dac-gray-400">{task.codice}</span>
             <button onClick={onClose} className="p-1 rounded-md hover:bg-white/10 text-dac-gray-400"><X size={16} /></button>
           </div>
           <h3 className="font-display font-bold text-white text-sm leading-snug">{task.descrizione}</h3>
-          {isScaduto && (
-            <div className="mt-2 px-2 py-1 rounded-lg bg-dac-red/15 text-dac-red text-[10px] font-bold flex items-center gap-1">
-              <AlertTriangle size={12} /> SCADUTO
+
+          {/* Countdown grande */}
+          {countdown && (
+            <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-xl"
+              style={{ background: countdown.color + '15', border: `1px solid ${countdown.color}30` }}>
+              <Clock size={16} style={{ color: countdown.color }} />
+              <div>
+                <div className="text-sm font-bold" style={{ color: countdown.color }}>{countdown.label}</div>
+                <div className="text-[9px]" style={{ color: countdown.color, opacity: 0.7 }}>
+                  {countdown.scaduto ? 'Scaduto' : 'Tempo rimanente'}
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -339,8 +324,7 @@ function TaskDetail({ task, isScaduto, onClose, onCambiaStato, onArchivia, onDel
           <DetailRow label="Assegnato a" value={task.assegnato_a_nome} />
           {task.assegnato_da && <DetailRow label="Assegnato da" value={task.assegnato_da} />}
           <DetailRow label="Creato" value={task.data_creazione ? format(new Date(task.data_creazione), 'dd/MM/yyyy HH:mm') : '—'} />
-          {task.scadenza && <DetailRow label="Scadenza" value={format(new Date(task.scadenza), 'dd/MM/yyyy')} />}
-          {task.ora && <DetailRow label="Ora" value={task.ora.substring(0, 5)} />}
+          {task.scadenza && <DetailRow label="Scadenza" value={format(new Date(task.scadenza), 'dd/MM/yyyy') + (task.ora ? ` ${task.ora.substring(0, 5)}` : '')} />}
           {task.paziente_nome && <DetailRow label="Paziente" value={task.paziente_nome} />}
           {task.servizio_nome && <DetailRow label="Servizio" value={task.servizio_nome} />}
           {task.note && <DetailRow label="Note" value={task.note} />}
@@ -349,8 +333,7 @@ function TaskDetail({ task, isScaduto, onClose, onCambiaStato, onArchivia, onDel
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-2">Stato</label>
             <div className="grid grid-cols-2 gap-1.5">
               {STATI.map(s => {
-                const sc = STATO_CONFIG[s]
-                const isActive = task.stato === s
+                const sc = STATO_CONFIG[s]; const isActive = task.stato === s
                 return (
                   <button key={s} onClick={() => onCambiaStato(task.id, s)}
                     className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${isActive ? '' : 'hover:opacity-80'}`}
@@ -365,15 +348,9 @@ function TaskDetail({ task, isScaduto, onClose, onCambiaStato, onArchivia, onDel
 
         <div className="p-4 border-t border-white/5 space-y-1.5">
           {task.stato === 'Completato' && (
-            <button onClick={() => onArchivia(task.id)}
-              className="w-full py-2 rounded-xl text-xs font-semibold text-dac-gray-400 bg-white/5 hover:bg-white/10 transition-colors">
-              📦 Archivia
-            </button>
+            <button onClick={() => onArchivia(task.id)} className="w-full py-2 rounded-xl text-xs font-semibold text-dac-gray-400 bg-white/5 hover:bg-white/10 transition-colors">📦 Archivia</button>
           )}
-          <button onClick={elimina}
-            className="w-full py-2 rounded-xl text-xs font-semibold text-dac-red bg-dac-red/10 hover:bg-dac-red/20 transition-colors">
-            🗑️ Elimina
-          </button>
+          <button onClick={elimina} className="w-full py-2 rounded-xl text-xs font-semibold text-dac-red bg-dac-red/10 hover:bg-dac-red/20 transition-colors">🗑️ Elimina</button>
         </div>
       </div>
     </>
@@ -393,8 +370,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 // NUOVO TASK
 // ═══════════════════════════════════════════════════════════
 function NuovoTaskModal({ operatori, operatoreCorrente, onClose, onSaved }: {
-  operatori: { id: string; nome: string; emoji: string }[]
-  operatoreCorrente: Operatore; onClose: () => void; onSaved: () => void
+  operatori: { id: string; nome: string; emoji: string }[]; operatoreCorrente: Operatore; onClose: () => void; onSaved: () => void
 }) {
   const [desc, setDesc] = useState('')
   const [tipo, setTipo] = useState('🎯 Libero')
@@ -403,35 +379,21 @@ function NuovoTaskModal({ operatori, operatoreCorrente, onClose, onSaved }: {
   const [scadenza, setScadenza] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [ora, setOra] = useState('')
   const [paziente, setPaziente] = useState('')
-  const [servizio, setServizio] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
 
   async function salva() {
     if (!desc.trim()) return
     setSaving(true)
-
     const codice = 'TSK-' + assegnatoA.replace(/[. ]/g, '').substring(0, 3).toUpperCase() + '-' + format(new Date(), 'yyMMddHHmmss')
     const op = operatori.find(o => o.nome === assegnatoA)
-
     await supabase.from('task').insert({
-      codice,
-      tipo,
-      descrizione: desc.trim(),
-      priorita,
-      stato: 'Da fare',
-      assegnato_a: op?.id ?? null,
-      assegnato_a_nome: assegnatoA,
-      assegnato_da: operatoreCorrente.nome,
-      scadenza: scadenza || null,
-      ora: ora ? ora + ':00' : null,
-      paziente_nome: paziente || null,
-      servizio_nome: servizio || null,
-      note: note || null,
+      codice, tipo, descrizione: desc.trim(), priorita, stato: 'Da fare',
+      assegnato_a: op?.id ?? null, assegnato_a_nome: assegnatoA, assegnato_da: operatoreCorrente.nome,
+      scadenza: scadenza || null, ora: ora ? ora + ':00' : null,
+      paziente_nome: paziente || null, servizio_nome: null, note: note || null,
     })
-
-    setSaving(false)
-    onSaved()
+    setSaving(false); onSaved()
   }
 
   return (
@@ -441,14 +403,11 @@ function NuovoTaskModal({ operatori, operatoreCorrente, onClose, onSaved }: {
           <h3 className="font-display font-bold text-white">➕ Nuovo Task</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-dac-gray-400"><X size={18} /></button>
         </div>
-
         <div className="p-5 space-y-3">
           <div>
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Descrizione *</label>
-            <input type="text" value={desc} onChange={e => setDesc(e.target.value)}
-              className="input-field" placeholder="Cosa deve essere fatto?" autoFocus />
+            <input type="text" value={desc} onChange={e => setDesc(e.target.value)} className="input-field" placeholder="Cosa deve essere fatto?" autoFocus />
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Tipo</label>
@@ -463,7 +422,6 @@ function NuovoTaskModal({ operatori, operatoreCorrente, onClose, onSaved }: {
               </select>
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Assegnato a</label>
@@ -476,7 +434,6 @@ function NuovoTaskModal({ operatori, operatoreCorrente, onClose, onSaved }: {
               <input type="date" value={scadenza} onChange={e => setScadenza(e.target.value)} className="input-field" />
             </div>
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Ora</label>
@@ -484,26 +441,19 @@ function NuovoTaskModal({ operatori, operatoreCorrente, onClose, onSaved }: {
             </div>
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Paziente</label>
-              <input type="text" value={paziente} onChange={e => setPaziente(e.target.value)}
-                className="input-field" placeholder="Nome paziente" />
+              <input type="text" value={paziente} onChange={e => setPaziente(e.target.value)} className="input-field" placeholder="Nome paziente" />
             </div>
           </div>
-
           <div>
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Note</label>
             <textarea value={note} onChange={e => setNote(e.target.value)} className="input-field resize-none" rows={2} placeholder="Note..." />
           </div>
         </div>
-
         <div className="flex gap-2 px-5 py-4 border-t border-white/5">
-          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-white/5 text-dac-gray-300 hover:bg-white/10 transition-colors">
-            Annulla
-          </button>
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-white/5 text-dac-gray-300 hover:bg-white/10 transition-colors">Annulla</button>
           <button onClick={salva} disabled={saving || !desc.trim()}
-            className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-dac-green text-white hover:opacity-90
-              disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
-            {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              : <><Check size={14} /> Crea Task</>}
+            className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-dac-green text-white hover:opacity-90 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2">
+            {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Check size={14} /> Crea Task</>}
           </button>
         </div>
       </div>
