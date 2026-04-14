@@ -9,36 +9,15 @@ import { TaskManager } from '@/pages/TaskManager'
 import { Inventario } from '@/pages/Inventario'
 import { Specialisti } from '@/pages/Specialisti'
 import { AnamnesiPage } from '@/pages/Anamnesi'
+import { PacchettiPage } from '@/pages/PacchettiPage'
+import { RicaviPage } from '@/pages/RicaviPage'
+import { CostiPage } from '@/pages/CostiPage'
 
 export default function App() {
   const auth = useAuth()
-
-  if (auth.loading) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-dac-navy noise-bg">
-        <div className="text-center animate-fade-in">
-          <div className="text-5xl mb-4">🏥</div>
-          <h1 className="font-display text-2xl font-bold text-white mb-2">DAC Manager</h1>
-          <p className="text-dac-gray-400 text-sm">Caricamento...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (!auth.isAuthenticated) {
-    return <LoginSplash onLoginEmail={auth.loginEmail} error={auth.error} loading={auth.loading} />
-  }
-
-  if (!auth.isReady) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-dac-navy noise-bg">
-        <div className="text-center animate-fade-in">
-          <div className="text-5xl mb-4">🏥</div>
-          <p className="text-dac-gray-400 text-sm">Preparazione profilo...</p>
-        </div>
-      </div>
-    )
-  }
+  if (auth.loading) return <Splash text="Caricamento..." />
+  if (!auth.isAuthenticated) return <LoginSplash onLoginEmail={auth.loginEmail} error={auth.error} loading={auth.loading} />
+  if (!auth.isReady) return <Splash text="Preparazione profilo..." />
 
   return (
     <Layout operatore={auth.operatore!} onLogout={auth.logout} onLogoutFull={auth.logout}>
@@ -50,18 +29,30 @@ export default function App() {
         <Route path="/inventario" element={<Inventario operatore={auth.operatore!} />} />
         <Route path="/specialisti" element={<Specialisti operatore={auth.operatore!} />} />
         <Route path="/anamnesi" element={<AnamnesiPage operatore={auth.operatore!} />} />
-        <Route path="/pacchetti" element={<Placeholder title="📦 Pacchetti" />} />
-        <Route path="/ricavi" element={<Placeholder title="💰 Ricavi" />} />
-        <Route path="/costi" element={<Placeholder title="📉 Costi" />} />
-        <Route path="/parafarmacia" element={<Placeholder title="🏪 Parafarmacia" />} />
-        <Route path="/config" element={<Placeholder title="⚙️ Configurazione" />} />
+        <Route path="/pacchetti" element={<PacchettiPage operatore={auth.operatore!} />} />
+        <Route path="/ricavi" element={<RicaviPage operatore={auth.operatore!} />} />
+        <Route path="/costi" element={<CostiPage operatore={auth.operatore!} />} />
+        <Route path="/parafarmacia" element={<PH title="🏪 Parafarmacia" />} />
+        <Route path="/config" element={<PH title="⚙️ Configurazione" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
   )
 }
 
-function Placeholder({ title }: { title: string }) {
+function Splash({ text }: { text: string }) {
+  return (
+    <div className="h-screen flex items-center justify-center bg-dac-navy noise-bg">
+      <div className="text-center animate-fade-in">
+        <div className="text-5xl mb-4">🏥</div>
+        <h1 className="font-display text-2xl font-bold text-white mb-2">DAC Manager</h1>
+        <p className="text-dac-gray-400 text-sm">{text}</p>
+      </div>
+    </div>
+  )
+}
+
+function PH({ title }: { title: string }) {
   return (
     <div className="flex items-center justify-center h-full">
       <div className="text-center animate-fade-in">
