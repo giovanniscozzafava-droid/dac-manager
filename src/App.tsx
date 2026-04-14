@@ -7,6 +7,8 @@ import { Agenda } from '@/pages/Agenda'
 import { Pazienti } from '@/pages/Pazienti'
 import { TaskManager } from '@/pages/TaskManager'
 import { Inventario } from '@/pages/Inventario'
+import { Specialisti } from '@/pages/Specialisti'
+import { AnamnesiPage } from '@/pages/Anamnesi'
 
 export default function App() {
   const auth = useAuth()
@@ -46,26 +48,26 @@ export default function App() {
         <Route path="/pazienti" element={<Pazienti operatore={auth.operatore!} />} />
         <Route path="/task" element={<TaskManager operatore={auth.operatore!} />} />
         <Route path="/inventario" element={<Inventario operatore={auth.operatore!} />} />
-        <Route path="/pacchetti" element={<PlaceholderPage title="📦 Pacchetti" />} />
-        <Route path="/ricavi" element={<PlaceholderPage title="💰 Ricavi" />} />
-        <Route path="/costi" element={<PlaceholderPage title="📉 Costi" />} />
-        <Route path="/specialisti" element={<PlaceholderPage title="🩺 Specialisti" />} />
-        <Route path="/parafarmacia" element={<PlaceholderPage title="🏪 Parafarmacia" />} />
-        <Route path="/anamnesi" element={<PlaceholderPage title="📋 Anamnesi" />} />
-        <Route path="/config" element={<PlaceholderPage title="⚙️ Configurazione" />} />
+        <Route path="/specialisti" element={<Specialisti operatore={auth.operatore!} />} />
+        <Route path="/anamnesi" element={<AnamnesiPage operatore={auth.operatore!} />} />
+        <Route path="/pacchetti" element={<Placeholder title="📦 Pacchetti" />} />
+        <Route path="/ricavi" element={<Placeholder title="💰 Ricavi" />} />
+        <Route path="/costi" element={<Placeholder title="📉 Costi" />} />
+        <Route path="/parafarmacia" element={<Placeholder title="🏪 Parafarmacia" />} />
+        <Route path="/config" element={<Placeholder title="⚙️ Configurazione" />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
   )
 }
 
-function PlaceholderPage({ title }: { title: string }) {
+function Placeholder({ title }: { title: string }) {
   return (
     <div className="flex items-center justify-center h-full">
       <div className="text-center animate-fade-in">
         <div className="text-6xl mb-4">{title.split(' ')[0]}</div>
         <h2 className="font-display text-xl font-bold text-white mb-2">{title}</h2>
-        <p className="text-dac-gray-400">Modulo in sviluppo — prossimamente</p>
+        <p className="text-dac-gray-400">Modulo in sviluppo</p>
       </div>
     </div>
   )
