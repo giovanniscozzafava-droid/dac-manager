@@ -1,31 +1,9 @@
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
-import Layout from './components/Layout';
 import LoginSplash from './components/LoginSplash';
 
-import { Dashboard } from './pages/Dashboard';
-import { Agenda } from './pages/Agenda';
-import { Pazienti } from './pages/Pazienti';
-import { TaskManager } from './pages/TaskManager';
-import { Inventario } from './pages/Inventario';
-import { Specialisti } from './pages/Specialisti';
-import { PacchettiPage } from './pages/PacchettiPage';
-import { RicaviPage } from './pages/RicaviPage';
-import { CostiPage } from './pages/CostiPage';
-import { ParafarmaciaPage } from './pages/ParafarmaciaPage';
-import { ContabilitaPage } from './pages/ContabilitaPage';
-import { ConfigPage } from './pages/ConfigPage';
-
-const AnamnesiPlaceholder = ({ operatore }: any) => (
-  <div className="p-8 text-white">
-    <h1 className="text-2xl font-bold mb-2">📋 Anamnesi</h1>
-    <p className="text-slate-400">In fase di riconnessione...</p>
-  </div>
-);
-
 export default function App() {
-  const { loading, operatore, authError, isAdmin, login, register, logout } = useAuth();
+  const { loading, operatore, authError, login, register, logout } = useAuth();
 
   if (loading) {
     return (
@@ -43,34 +21,11 @@ export default function App() {
     return <LoginSplash onLogin={login} onRegister={register} error={authError} />;
   }
 
-  const o = operatore;
-
   return (
-    <BrowserRouter>
-      <Layout
-        operatore={o}
-        isAdmin={isAdmin}
-        onCambiaOperatore={logout}
-        onLogout={logout}
-        onLogoutFull={logout}
-      >
-        <Routes>
-          <Route path="/" element={<Dashboard operatore={o} />} />
-          <Route path="/agenda" element={<Agenda operatore={o} />} />
-          <Route path="/pazienti" element={<Pazienti operatore={o} />} />
-          <Route path="/task" element={<TaskManager operatore={o} />} />
-          <Route path="/inventario" element={<Inventario operatore={o} />} />
-          <Route path="/specialisti" element={<Specialisti operatore={o} />} />
-          <Route path="/anamnesi" element={<AnamnesiPlaceholder operatore={o} />} />
-          <Route path="/pacchetti" element={<PacchettiPage operatore={o} />} />
-          <Route path="/ricavi" element={<RicaviPage operatore={o} />} />
-          <Route path="/costi" element={<CostiPage operatore={o} />} />
-          <Route path="/parafarmacia" element={<ParafarmaciaPage operatore={o} />} />
-          <Route path="/contabilita" element={<ContabilitaPage operatore={o} />} />
-          <Route path="/config" element={<ConfigPage operatore={o} />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Layout>
-    </BrowserRouter>
+    <div className="min-h-screen bg-slate-900 text-white p-8">
+      <h1 className="text-2xl font-bold">🏥 Ciao {operatore.nome}!</h1>
+      <p className="text-slate-400 mt-2">Auth funziona. Ora ricolleghiamo le pagine.</p>
+      <button onClick={logout} className="mt-4 px-4 py-2 bg-red-600 rounded-lg">Logout</button>
+    </div>
   );
 }
