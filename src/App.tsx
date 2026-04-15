@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import LoginSplash from './components/LoginSplash';
-import SelectOperatore from './components/SelectOperatore';
 
 import { Dashboard } from './pages/Dashboard';
 import { Agenda } from './pages/Agenda';
@@ -26,11 +25,7 @@ try {
 }
 
 export default function App() {
-  const {
-    loading, session, user, operatore, operatori,
-    needsOperatoreSelection, isAdmin,
-    loginWithGoogle, selectOperatore, cambiaOperatore, logout, logoutFull,
-  } = useAuth();
+  const { loading, operatore, authError, isAdmin, login, logout } = useAuth();
 
   if (loading) {
     return (
@@ -44,19 +39,8 @@ export default function App() {
     );
   }
 
-  if (!session || !user) {
-    return <LoginSplash onLoginGoogle={loginWithGoogle} />;
-  }
-
-  if (needsOperatoreSelection || !operatore) {
-    return (
-      <SelectOperatore
-        operatori={operatori}
-        userEmail={user.email || ''}
-        onSelect={selectOperatore}
-        onLogout={logoutFull}
-      />
-    );
+  if (!operatore) {
+    return <LoginSplash onLogin={login} error={authError} />;
   }
 
   const o = operatore;
@@ -66,9 +50,9 @@ export default function App() {
       <Layout
         operatore={o}
         isAdmin={isAdmin}
-        onCambiaOperatore={cambiaOperatore}
+        onCambiaOperatore={logout}
         onLogout={logout}
-        onLogoutFull={logoutFull}
+        onLogoutFull={logout}
       >
         <Routes>
           <Route path="/" element={<Dashboard operatore={o} />} />

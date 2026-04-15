@@ -15,103 +15,95 @@ export interface Operatore {
   area: string;
 }
 
-interface AuthState {
-  loading: boolean;
-  session: Session | null;
-  user: User | null;
-  operatore: Operatore | null;
-  operatori: Operatore[];
-  needsOperatoreSelection: boolean;
-}
-
-const STORAGE_KEY = 'dac_operatore_id';
-
 export function useAuth() {
-  const [state, setState] = useState<AuthState>({
-    loading: true,
-    session: null,
-    user: null,
-    operatore: null,
-    operatori: [],
-    needsOperatoreSelection: false,
-  });
+  const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+  const [operatore, setOperatore] = useState<Operatore | null>(null);
+  const [authError, setAuthError] = useState('');
 
-  const loadOperatori = useCallback(async (): Promise<Operatore[]> => {
-    const { data, error } = await supabase
+  const matchOperatore = useCallback(async (email: string): Promise<Operatore | null> => {
+    const { data } = await supabase
       .from('operatori')
       .select('id, nome, ruolo, settore, email, attivo, emoji, colore, colore_bordo, area')
+      .eq('email', email.toLowerCase().trim())
       .eq('attivo', true)
-      .order('nome');
-    if (error) {
-      console.error('Errore caricamento operatori:', error);
-      return [];
-    }
-    return (data || []) as Operatore[];
+      .single();
+    return data as Operatore | null;
   }, []);
-
-  const tryRestoreOperatore = useCallback(
-    (operatori: Operatore[]): Operatore | null => {
-      const savedId = localStorage.getItem(STORAGE_KEY);
-      if (!savedId) return null;
-      return operatori.find((o) => o.id === savedId) || null;
-    },
-    []
-  );
 
   useEffect(() => {
     let mounted = true;
+
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        if (mounted) setState({ loading: false, session: null, user: null, operatore: null, operatori: [], needsOperatoreSelection: false });
+      if (!session?.user?.email) {
+        if (mounted) setLoading(false);
         return;
       }
-      const ops = await loadOperatori();
-      const restored = tryRestoreOperatore(ops);
-      if (mounted) setState({ loading: false, session, user: session.user, operatore: restored, operatori: ops, needsOperatoreSelection: !restored });
+      const op = await matchOperatore(session.user.email);
+      if (mounted) {
+        setSession(session);
+        setUser(session.user);
+        setOperatore(op);
+        if (!op) setAuthError('Account non associato a nessun operatore. Contatta l\'amministratore.');
+        setLoading(false);
+      }
     };
+
     init();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
-      if (!session) {
-        localStorage.removeItem(STORAGE_KEY);
-        setState({ loading: false, session: null, user: null, operatore: null, operatori: [], needsOperatoreSelection: false });
+      if (!session?.user?.email) {
+        setSession(null);
+        setUser(null);
+        setOperatore(null);
+        setAuthError('');
         return;
       }
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        const ops = await loadOperatori();
-        const restored = tryRestoreOperatore(ops);
-        setState({ loading: false, session, user: session.user, operatore: restored, operatori: ops, needsOperatoreSelection: !restored });
-      }
+      const op = await matchOperatore(session.user.email);
+      setSession(session);
+      setUser(session.user);
+      setOperatore(op);
+      if (!op) setAuthError('Account non associato a nessun operatore.');
     });
+
     return () => { mounted = false; subscription.unsubscribe(); };
-  }, [loadOperatori, tryRestoreOperatore]);
+  }, [matchOperatore]);
 
-  const loginWithGoogle = useCallback(async () => {
-    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
-    if (error) throw error;
+  const login = useCallback(async (email: string, password: string) => {
+    setAuthError('');
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.toLowerCase().trim(),
+      password,
+    });
+    if (error) {
+      if (error.message.includes('Invalid login')) {
+        setAuthError('Email o password errati.');
+      } else {
+        setAuthError(error.message);
+      }
+      throw error;
+    }
   }, []);
 
-  const selectOperatore = useCallback((op: Operatore) => {
-    localStorage.setItem(STORAGE_KEY, op.id);
-    setState((prev) => ({ ...prev, operatore: op, needsOperatoreSelection: false }));
-  }, []);
-
-  const cambiaOperatore = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    setState((prev) => ({ ...prev, operatore: null, needsOperatoreSelection: true }));
-  }, []);
-
-  const logout = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
-    setState((prev) => ({ ...prev, operatore: null, needsOperatoreSelection: true }));
-  }, []);
-
-  const logoutFull = useCallback(async () => {
-    localStorage.removeItem(STORAGE_KEY);
+  const logout = useCallback(async () => {
     await supabase.auth.signOut();
-    setState({ loading: false, session: null, user: null, operatore: null, operatori: [], needsOperatoreSelection: false });
+    setSession(null);
+    setUser(null);
+    setOperatore(null);
+    setAuthError('');
   }, []);
 
-  return { ...state, isAdmin: state.operatore?.ruolo === 'admin', loginWithGoogle, selectOperatore, cambiaOperatore, logout, logoutFull };
+  return {
+    loading,
+    session,
+    user,
+    operatore,
+    authError,
+    isAdmin: operatore?.ruolo === 'admin',
+    login,
+    logout,
+  };
 }
