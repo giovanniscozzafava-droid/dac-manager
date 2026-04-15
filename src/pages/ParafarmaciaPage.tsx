@@ -18,8 +18,10 @@ interface ProdottoParafarmacia {
   marca: string | null; quantita: number; soglia_min: number
   prezzo_acquisto: number | null; prezzo_vendita: number | null
   aliquota_iva: number | null
-  scadenza: string | null; fornitore: string | null; note: string | null
+  scadenza: string | null; fornitore: string | null; fornitore_id: string | null; note: string | null
 }
+
+interface Fornitore { id: string; nome: string; attivo: boolean }
 
 interface Props { operatore: Operatore }
 
@@ -175,6 +177,7 @@ function CassaForm({ data, operatore, onClose, onSaved }: { data: string; operat
 // ═══════════════════════════════════════════════════════════
 function MagazzinoTab({ operatore }: { operatore: Operatore }) {
   const [items, setItems] = useState<ProdottoParafarmacia[]>([])
+  const [fornitori, setFornitori] = useState<Fornitore[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterCat, setFilterCat] = useState('')
@@ -183,9 +186,17 @@ function MagazzinoTab({ operatore }: { operatore: Operatore }) {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('inventario_parafarmacia').select('*').order('prodotto')
-    setItems(data ?? []); setLoading(false)
+    const [prod, forn] = await Promise.all([
+      supabase.from('inventario_parafarmacia').select('*').order('prodotto'),
+      supabase.from('fornitori').select('id,nome,attivo').order('nome'),
+    ])
+    setItems(prod.data ?? [])
+    setFornitori(forn.data ?? [])
+    setLoading(false)
   }, [])
+
+  const fornMap: Record<string, string> = {}
+  fornitori.forEach(f => { fornMap[f.id] = f.nome })
 
   useEffect(() => { load() }, [load])
 
@@ -247,6 +258,7 @@ function MagazzinoTab({ operatore }: { operatore: Operatore }) {
               <th className="th-cell text-center">Imponibile</th>
               <th className="th-cell text-center">Margine</th>
               <th className="th-cell">Scadenza</th>
+              <th className="th-cell">Fornitore</th>
               <th className="th-cell text-center">Azioni</th>
             </tr>
           </thead>
@@ -284,6 +296,7 @@ function MagazzinoTab({ operatore }: { operatore: Operatore }) {
                       {scadGg !== null && <span className={`ml-1 text-[9px] font-bold ${scadGg < 0 ? 'text-dac-red' : scadGg < 30 ? 'text-dac-orange' : 'text-dac-gray-500'}`}>({scadGg}gg)</span>}
                     </div> : <span className="text-dac-gray-500/30 text-xs">—</span>}
                   </td>
+                  <td className="td-cell"><span className="text-[10px] text-dac-gray-400">{p.fornitore_id ? (fornMap[p.fornitore_id] ?? '—') : (p.fornitore ?? '—')}</span></td>
                   <td className="td-cell text-center">
                     <div className="flex justify-center gap-1">
                       <button onClick={() => { setEditItem(p); setShowForm(true) }} className="p-1 rounded hover:bg-white/10 text-dac-gray-500 hover:text-white"><Edit3 size={12} /></button>
@@ -298,7 +311,7 @@ function MagazzinoTab({ operatore }: { operatore: Operatore }) {
         </table>}
       </div>
 
-      {showForm && <ProdottoForm item={editItem} onClose={() => { setShowForm(false); setEditItem(null) }} onSaved={onSaved} />}
+      {showForm && <ProdottoForm item={editItem} fornitori={fornitori} onClose={() => { setShowForm(false); setEditItem(null) }} onSaved={onSaved} />}
     </div>
   )
 }
@@ -306,7 +319,7 @@ function MagazzinoTab({ operatore }: { operatore: Operatore }) {
 // ═══════════════════════════════════════════════════════════
 // FORM PRODOTTO CON IVA
 // ═══════════════════════════════════════════════════════════
-function ProdottoForm({ item, onClose, onSaved }: { item: ProdottoParafarmacia | null; onClose: () => void; onSaved: () => void }) {
+function ProdottoForm({ item, fornitori, onClose, onSaved }: { item: ProdottoParafarmacia | null; fornitori: Fornitore[]; onClose: () => void; onSaved: () => void }) {
   const isEdit = !!item
   const [prodotto, setProdotto] = useState(item?.prodotto ?? '')
   const [categoria, setCategoria] = useState(item?.categoria ?? 'Altro')
@@ -317,7 +330,7 @@ function ProdottoForm({ item, onClose, onSaved }: { item: ProdottoParafarmacia |
   const [pVendita, setPVendita] = useState(item?.prezzo_vendita ?? 0)
   const [iva, setIva] = useState(item?.aliquota_iva ?? 22)
   const [scadenza, setScadenza] = useState(item?.scadenza ?? '')
-  const [fornitore, setFornitore] = useState(item?.fornitore ?? '')
+  const [fornitoreId, setFornitoreId] = useState<string>(item?.fornitore_id ?? '')
   const [note, setNote] = useState(item?.note ?? '')
   const [saving, setSaving] = useState(false)
 
@@ -333,7 +346,7 @@ function ProdottoForm({ item, onClose, onSaved }: { item: ProdottoParafarmacia |
       prodotto: prodotto.trim(), categoria, marca: marca || null,
       quantita, soglia_min: soglia, prezzo_acquisto: pAcquisto || null,
       prezzo_vendita: pVendita || null, aliquota_iva: iva,
-      scadenza: scadenza || null, fornitore: fornitore || null, note: note || null,
+      scadenza: scadenza || null, fornitore_id: fornitoreId || null, fornitore: null, note: note || null,
     }
     if (isEdit) await supabase.from('inventario_parafarmacia').update(payload).eq('id', item!.id)
     else await supabase.from('inventario_parafarmacia').insert({ ...payload, codice: 'PF-' + String(Date.now()).substring(7) })
@@ -409,7 +422,10 @@ function ProdottoForm({ item, onClose, onSaved }: { item: ProdottoParafarmacia |
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Scadenza</label>
               <input type="date" value={scadenza} onChange={e => setScadenza(e.target.value)} className="input-field" /></div>
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Fornitore</label>
-              <input type="text" value={fornitore} onChange={e => setFornitore(e.target.value)} className="input-field" /></div>
+              <select value={fornitoreId} onChange={e => setFornitoreId(e.target.value)} className="input-field [&>option]:bg-dac-deep">
+                <option value="">— Nessuno —</option>
+                {fornitori.filter(f => f.attivo || f.id === fornitoreId).map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+              </select></div>
           </div>
           <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Note</label>
             <input type="text" value={note} onChange={e => setNote(e.target.value)} className="input-field" /></div>

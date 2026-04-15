@@ -26,7 +26,10 @@ interface Item {
   ultimo_ordine: string | null
   stato: string
   note: string | null
+  fornitore_id: string | null
 }
+
+interface Fornitore { id: string; nome: string; attivo: boolean }
 
 interface Props { operatore: Operatore }
 
@@ -62,6 +65,7 @@ function giorniAllaScadenza(scadenza: string | null): number | null {
 
 export function Inventario({ operatore }: Props) {
   const [items, setItems] = useState<Item[]>([])
+  const [fornitori, setFornitori] = useState<Fornitore[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [filterMarca, setFilterMarca] = useState('')
@@ -73,12 +77,19 @@ export function Inventario({ operatore }: Props) {
 
   const loadItems = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase.from('inventario').select('*').order('marca').order('prodotto')
-    setItems(data ?? [])
+    const [inv, forn] = await Promise.all([
+      supabase.from('inventario').select('*').order('marca').order('prodotto'),
+      supabase.from('fornitori').select('id,nome,attivo').order('nome'),
+    ])
+    setItems(inv.data ?? [])
+    setFornitori(forn.data ?? [])
     setLoading(false)
   }, [])
 
   useEffect(() => { loadItems() }, [loadItems])
+
+  const fornMap: Record<string, string> = {}
+  fornitori.forEach(f => { fornMap[f.id] = f.nome })
 
   // Stats
   const totale = items.length
@@ -194,6 +205,7 @@ export function Inventario({ operatore }: Props) {
                 <th className="th-cell text-center">📦Conf.</th>
                 <th className="th-cell text-center">Totale</th>
                 <th className="th-cell">Scadenza</th>
+                <th className="th-cell">Fornitore</th>
                 <th className="th-cell">Stato</th>
                 <th className="th-cell text-center">Azioni</th>
               </tr>
@@ -247,6 +259,9 @@ export function Inventario({ operatore }: Props) {
                       ) : <span className="text-dac-gray-500/30 text-xs">—</span>}
                     </td>
                     <td className="td-cell">
+                      <span className="text-[10px] text-dac-gray-400">{item.fornitore_id ? (fornMap[item.fornitore_id] ?? '—') : '—'}</span>
+                    </td>
+                    <td className="td-cell">
                       <span className="px-2 py-0.5 rounded-full text-[9px] font-bold whitespace-nowrap" style={{ background: ss.bg, color: ss.text }}>
                         {item.stato}
                       </span>
@@ -273,7 +288,7 @@ export function Inventario({ operatore }: Props) {
 
       {/* Form nuovo/modifica */}
       {showForm && (
-        <InventarioForm item={editItem} onClose={() => { setShowForm(false); setEditItem(null) }} onSaved={onSaved} />
+        <InventarioForm item={editItem} fornitori={fornitori.filter(f => f.attivo)} onClose={() => { setShowForm(false); setEditItem(null) }} onSaved={onSaved} />
       )}
 
       {/* Dettaglio */}
@@ -289,7 +304,7 @@ export function Inventario({ operatore }: Props) {
 // ═══════════════════════════════════════════════════════════
 // FORM
 // ═══════════════════════════════════════════════════════════
-function InventarioForm({ item, onClose, onSaved }: { item: Item | null; onClose: () => void; onSaved: () => void }) {
+function InventarioForm({ item, fornitori, onClose, onSaved }: { item: Item | null; fornitori: Fornitore[]; onClose: () => void; onSaved: () => void }) {
   const isEdit = !!item
   const [marca, setMarca] = useState(item?.marca ?? 'SNIBE')
   const [prodotto, setProdotto] = useState(item?.prodotto ?? '')
@@ -303,6 +318,7 @@ function InventarioForm({ item, onClose, onSaved }: { item: Item | null; onClose
   const [soglia, setSoglia] = useState(item?.soglia_min ?? 1)
   const [costo, setCosto] = useState(item?.costo_unitario ?? 0)
   const [scadenza, setScadenza] = useState(item?.scadenza ?? '')
+  const [fornitoreId, setFornitoreId] = useState<string>(item?.fornitore_id ?? '')
   const [note, setNote] = useState(item?.note ?? '')
   const [saving, setSaving] = useState(false)
 
