@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import type { User, Session } from '@supabase/supabase-js';
 
 export interface Operatore {
   id: string;
@@ -17,48 +16,75 @@ export interface Operatore {
 
 export function useAuth() {
   const [loading, setLoading] = useState(true);
-  const [session, setSession] = useState<Session | null>(null);
-  const [user, setUser] = useState<User | null>(null);
   const [operatore, setOperatore] = useState<Operatore | null>(null);
   const [authError, setAuthError] = useState('');
 
-  const matchOperatore = useCallback(async (email: string): Promise<Operatore | null> => {
-    const { data } = await supabase
-      .from('operatori')
-      .select('id, nome, ruolo, settore, email, attivo, emoji, colore, colore_bordo, area')
-      .eq('email', email.toLowerCase().trim())
-      .eq('attivo', true)
-      .single();
-    return data as Operatore | null;
-  }, []);
+  const matchOperatore = async (email: string): Promise<Operatore | null> => {
+    try {
+      const { data } = await supabase
+        .from('operatori')
+        .select('id, nome, ruolo, settore, email, attivo, emoji, colore, colore_bordo, area')
+        .eq('email', email.toLowerCase().trim())
+        .eq('attivo', true)
+        .single();
+      return data as Operatore | null;
+    } catch {
+      return null;
+    }
+  };
 
   useEffect(() => {
     let mounted = true;
+
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.email) { if (mounted) setLoading(false); return; }
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user?.email) {
+          const op = await matchOperatore(session.user.email);
+          if (mounted) {
+            setOperatore(op);
+            if (!op) setAuthError('Email non associata a nessun operatore.');
+          }
+        }
+      } catch (e) {
+        console.error('Auth init error:', e);
+      }
+      if (mounted) setLoading(false);
+    };
+
+    // Timeout di sicurezza: se dopo 5 sec non ha finito, forza loading = false
+    const timeout = setTimeout(() => {
+      if (mounted) setLoading(false);
+    }, 5000);
+
+    init().then(() => clearTimeout(timeout));
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!mounted) return;
+      if (!session?.user?.email) {
+        setOperatore(null);
+        setAuthError('');
+        setLoading(false);
+        return;
+      }
       const op = await matchOperatore(session.user.email);
       if (mounted) {
-        setSession(session); setUser(session.user); setOperatore(op);
+        setOperatore(op);
         if (!op) setAuthError('Email non associata a nessun operatore.');
         setLoading(false);
       }
-    };
-    init();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!mounted) return;
-      if (!session?.user?.email) { setSession(null); setUser(null); setOperatore(null); setAuthError(''); return; }
-      const op = await matchOperatore(session.user.email);
-      setSession(session); setUser(session.user); setOperatore(op);
-      if (!op) setAuthError('Email non associata a nessun operatore.');
     });
+
     return () => { mounted = false; subscription.unsubscribe(); };
-  }, [matchOperatore]);
+  }, []);
 
   const login = useCallback(async (email: string, password: string) => {
     setAuthError('');
     const { error } = await supabase.auth.signInWithPassword({ email: email.toLowerCase().trim(), password });
-    if (error) { setAuthError(error.message.includes('Invalid login') ? 'Email o password errati.' : error.message); throw error; }
+    if (error) {
+      setAuthError(error.message.includes('Invalid login') ? 'Email o password errati.' : error.message);
+      throw error;
+    }
   }, []);
 
   const register = useCallback(async (email: string, password: string) => {
@@ -72,8 +98,9 @@ export function useAuth() {
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
-    setSession(null); setUser(null); setOperatore(null); setAuthError('');
+    setOperatore(null);
+    setAuthError('');
   }, []);
 
-  return { loading, session, user, operatore, authError, isAdmin: operatore?.ruolo === 'admin', login, register, logout };
+  return { loading, operatore, authError, isAdmin: operatore?.ruolo === 'admin', login, register, logout };
 }
