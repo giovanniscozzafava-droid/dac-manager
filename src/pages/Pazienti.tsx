@@ -30,6 +30,7 @@ interface Paziente {
   provenienza: string | null
   data_prima_visita: string | null
   gdpr: string
+  doc_gdpr_url: string | null
   patologie: string | null
   allergie: string | null
   farmaci: string | null
@@ -107,6 +108,14 @@ export function Pazienti({ operatore }: Props) {
     setShowEdit(false)
     setSelected(null)
     loadPazienti()
+  }
+
+  async function reloadSelected() {
+    await loadPazienti()
+    if (selected) {
+      const { data } = await supabase.from('pazienti').select('*').eq('id', selected.id).single()
+      if (data) setSelected(data)
+    }
   }
 
   return (
@@ -236,6 +245,7 @@ export function Pazienti({ operatore }: Props) {
           onClose={() => setSelected(null)}
           onEdit={() => { setShowEdit(true) }}
           onDeleted={onSaved}
+          onReload={reloadSelected}
         />
       )}
 
@@ -254,11 +264,11 @@ export function Pazienti({ operatore }: Props) {
 // ═══════════════════════════════════════════════════════════
 // PANEL: Dettaglio Paziente
 // ═══════════════════════════════════════════════════════════
-function DettaglioPaziente({ paziente: p, onClose, onEdit, onDeleted }: {
-  paziente: Paziente; onClose: () => void; onEdit: () => void; onDeleted: () => void
+function DettaglioPaziente({ paziente: p, onClose, onEdit, onDeleted, onReload }: {
+  paziente: Paziente; onClose: () => void; onEdit: () => void; onDeleted: () => void; onReload: () => Promise<void>
 }) {
   const [showGDPR, setShowGDPR] = useState(false)
-  const [gdprFirmato, setGdprFirmato] = useState(p.gdpr === 'firmato')
+  const gdprFirmato = p.gdpr === 'firmato'
 
   async function elimina() {
     if (!confirm(`Eliminare ${p.cognome} ${p.nome}? L'operazione è irreversibile.`)) return
@@ -342,10 +352,23 @@ function DettaglioPaziente({ paziente: p, onClose, onEdit, onDeleted }: {
 
         {/* Footer */}
         <div className="p-4 border-t border-white/5 flex-shrink-0 space-y-2">
-          <button onClick={() => setShowGDPR(true)}
-            className="w-full py-2 rounded-xl text-xs font-semibold text-white bg-dac-accent/80 hover:bg-dac-accent transition-colors flex items-center justify-center gap-2">
-            <FileText size={14} /> {gdprFirmato ? 'Ri-firma GDPR' : 'Firma GDPR'}
-          </button>
+          {gdprFirmato ? (
+            p.doc_gdpr_url ? (
+              <a href={p.doc_gdpr_url} target="_blank" rel="noopener noreferrer"
+                className="w-full py-2 rounded-xl text-xs font-semibold text-white bg-dac-green/80 hover:bg-dac-green transition-colors flex items-center justify-center gap-2">
+                <Download size={14} /> Scarica GDPR firmato
+              </a>
+            ) : (
+              <div className="w-full py-2 rounded-xl text-xs font-semibold text-dac-gray-400 bg-white/5 text-center">
+                ✅ GDPR firmato (PDF non disponibile)
+              </div>
+            )
+          ) : (
+            <button onClick={() => setShowGDPR(true)}
+              className="w-full py-2 rounded-xl text-xs font-semibold text-white bg-dac-accent/80 hover:bg-dac-accent transition-colors flex items-center justify-center gap-2">
+              <FileText size={14} /> Firma GDPR
+            </button>
+          )}
           <button onClick={elimina}
             className="w-full py-2 rounded-xl text-xs font-semibold text-dac-red bg-dac-red/10 hover:bg-dac-red/20 transition-colors">
             🗑️ Archivia Paziente
@@ -356,7 +379,7 @@ function DettaglioPaziente({ paziente: p, onClose, onEdit, onDeleted }: {
         <GDPRDocument
           paziente={{ id: p.id, nome: p.nome, cognome: p.cognome, codice_fiscale: p.codice_fiscale, data_nascita: p.data_nascita }}
           onClose={() => setShowGDPR(false)}
-          onSigned={() => { setGdprFirmato(true); setShowGDPR(false) }}
+          onSigned={async () => { setShowGDPR(false); await onReload() }}
         />
       )}
     </>
