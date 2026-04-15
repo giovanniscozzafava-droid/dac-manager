@@ -10,7 +10,9 @@ export const supabase = createClient(
       detectSessionInUrl: true,
       persistSession: true,
       autoRefreshToken: true,
-      lock: { enabled: false }
+      lock: async (name: string, acquireTimeout: number, fn: () => Promise<any>) => {
+        return await fn();
+      }
     }
   }
 )
