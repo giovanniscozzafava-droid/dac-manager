@@ -16,9 +16,13 @@ import { CostiPage } from './pages/CostiPage';
 import { ParafarmaciaPage } from './pages/ParafarmaciaPage';
 import { ContabilitaPage } from './pages/ContabilitaPage';
 import { ConfigPage } from './pages/ConfigPage';
-import * as AnamnesiModule from './pages/Anamnesi';
 
-const AnamnesiComp = (AnamnesiModule as any).Anamnesi || (AnamnesiModule as any).default || (() => <div className="p-8 text-white">Anamnesi</div>);
+const AnamnesiPlaceholder = ({ operatore }: any) => (
+  <div className="p-8 text-white">
+    <h1 className="text-2xl font-bold mb-2">📋 Anamnesi</h1>
+    <p className="text-slate-400">In fase di riconnessione...</p>
+  </div>
+);
 
 export default function App() {
   const { loading, operatore, authError, isAdmin, login, register, logout } = useAuth();
@@ -57,7 +61,7 @@ export default function App() {
           <Route path="/task" element={<TaskManager operatore={o} />} />
           <Route path="/inventario" element={<Inventario operatore={o} />} />
           <Route path="/specialisti" element={<Specialisti operatore={o} />} />
-          <Route path="/anamnesi" element={<AnamnesiComp operatore={o} />} />
+          <Route path="/anamnesi" element={<AnamnesiPlaceholder operatore={o} />} />
           <Route path="/pacchetti" element={<PacchettiPage operatore={o} />} />
           <Route path="/ricavi" element={<RicaviPage operatore={o} />} />
           <Route path="/costi" element={<CostiPage operatore={o} />} />
