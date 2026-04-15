@@ -1,61 +1,79 @@
-import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import React, { useState } from 'react';
 
-export function LoginSplash() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+interface LoginSplashProps {
+  onLoginGoogle: () => Promise<void>;
+}
 
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault()
-    setError(''); setLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim().toLowerCase(), password })
-    if (error) {
-      if (error.message === 'Invalid login credentials') setError('Email o password errati')
-      else if (error.message.includes('Email not confirmed')) setError('Account non ancora confermato')
-      else setError(error.message)
+export default function LoginSplash({ onLoginGoogle }: LoginSplashProps) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleLogin = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      await onLoginGoogle();
+    } catch (err: any) {
+      setError(err?.message || 'Errore di login');
+      setLoading(false);
     }
-    setLoading(false)
-  }
+  };
 
   return (
-    <div className="h-screen flex items-center justify-center bg-dac-navy noise-bg">
-      <div className="w-full max-w-sm mx-4 animate-fade-in">
-        <div className="text-center mb-8">
-          <div className="text-5xl mb-3">🏥</div>
-          <h1 className="font-display text-2xl font-bold text-white">DAC Manager</h1>
-          <p className="text-dac-gray-400 text-sm mt-1">Palazzo della Salute</p>
-        </div>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900">
+      <div className="text-center">
+        {/* Logo */}
+        <div className="text-6xl mb-4">🏥</div>
+        <h1 className="text-3xl font-bold text-white mb-1">
+          Palazzo della Salute
+        </h1>
+        <p className="text-blue-300/60 text-sm mb-8">
+          DAC Manager v1.3 — Laboratori DAC S.R.L.
+        </p>
 
-        <div className="bg-dac-card border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-          <div className="px-6 py-4 border-b border-white/5 text-center">
-            <h2 className="text-sm font-semibold text-white">Accedi al gestionale</h2>
-            <p className="text-[10px] text-dac-gray-500 mt-1">Usa le credenziali fornite dall'amministratore</p>
+        {/* Bottone Google */}
+        <button
+          onClick={handleLogin}
+          disabled={loading}
+          className="group flex items-center gap-3 mx-auto px-6 py-3 bg-white hover:bg-gray-50 text-gray-800 font-semibold rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {loading ? (
+            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <svg className="w-5 h-5" viewBox="0 0 24 24">
+              <path
+                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+                fill="#4285F4"
+              />
+              <path
+                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                fill="#34A853"
+              />
+              <path
+                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+                fill="#FBBC05"
+              />
+              <path
+                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                fill="#EA4335"
+              />
+            </svg>
+          )}
+          <span>{loading ? 'Accesso in corso...' : 'Accedi con Google'}</span>
+        </button>
+
+        {/* Errore */}
+        {error && (
+          <div className="mt-4 px-4 py-2 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm max-w-xs mx-auto">
+            {error}
           </div>
+        )}
 
-          <form onSubmit={handleLogin} className="p-6 space-y-4">
-            <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1.5">Email</label>
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="la.tua@email.it" required autoFocus
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder:text-dac-gray-500 focus:outline-none focus:border-dac-accent/50" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1.5">Password</label>
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required
-                className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white text-sm placeholder:text-dac-gray-500 focus:outline-none focus:border-dac-accent/50" />
-            </div>
-
-            {error && <div className="px-3 py-2 rounded-lg bg-dac-red/10 border border-dac-red/20 text-xs text-dac-red">❌ {error}</div>}
-
-            <button type="submit" disabled={loading}
-              className="w-full py-3 rounded-xl text-sm font-semibold bg-dac-accent text-white hover:opacity-90 disabled:opacity-30 transition-all flex items-center justify-center gap-2">
-              {loading ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : '🔑 Accedi'}
-            </button>
-          </form>
-        </div>
-        <p className="text-center text-[10px] text-dac-gray-500 mt-4">DAC Manager v2.0 — Fuyue Digital Agency</p>
+        {/* Footer */}
+        <p className="mt-12 text-blue-300/30 text-xs">
+          © 2026 Fuyue Digital Agency — Giovanni Scozzafava
+        </p>
       </div>
     </div>
-  )
+  );
 }

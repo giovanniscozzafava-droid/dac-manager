@@ -1,172 +1,186 @@
-import { useState, type ReactNode } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import type { Operatore } from '@/hooks/useAuth'
-import {
-  LayoutDashboard, Calendar, Users, CheckSquare, Package,
-  DollarSign, TrendingDown, FlaskConical, Stethoscope,
-  Store, ClipboardList, Settings, ChevronLeft, ChevronRight,
-  LogOut, RefreshCw, Menu, X
-} from 'lucide-react'
+import React, { useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import type { Operatore } from '../hooks/useAuth';
 
-interface Props {
-  operatore: Operatore
-  onLogout: () => void
-  onLogoutFull: () => void
-  children: ReactNode
+interface LayoutProps {
+  children: React.ReactNode;
+  operatore: Operatore;
+  isAdmin: boolean;
+  onCambiaOperatore: () => void;
+  onLogout: () => void;
+  onLogoutFull: () => Promise<void>;
 }
 
 const NAV_ITEMS = [
-  { path: '/', label: 'Dashboard', icon: LayoutDashboard, emoji: '📊' },
-  { path: '/agenda', label: 'Agenda', icon: Calendar, emoji: '📅' },
-  { path: '/pazienti', label: 'Pazienti', icon: Users, emoji: '👥' },
-  { path: '/task', label: 'Task', icon: CheckSquare, emoji: '✅' },
+  { path: '/', icon: '📊', label: 'Dashboard' },
+  { path: '/agenda', icon: '📅', label: 'Agenda' },
+  { path: '/pazienti', icon: '👥', label: 'Pazienti' },
+  { path: '/task', icon: '📋', label: 'Task' },
+  { path: '/anamnesi', icon: '🩺', label: 'Anamnesi' },
+  { path: '/pacchetti', icon: '📦', label: 'Pacchetti' },
+  { path: '/specialisti', icon: '👨‍⚕️', label: 'Specialisti' },
+  { path: '/inventario', icon: '🧪', label: 'Inventario' },
+  { path: '/parafarmacia', icon: '🏪', label: 'Parafarmacia' },
   { divider: true, label: 'Contabilità' },
-  { path: '/pacchetti', label: 'Pacchetti', icon: Package, emoji: '📦' },
-  { path: '/ricavi', label: 'Ricavi', icon: DollarSign, emoji: '💰' },
-  { path: '/costi', label: 'Costi', icon: TrendingDown, emoji: '📉' },
-  { divider: true, label: 'Struttura' },
-  { path: '/inventario', label: 'Inventario', icon: FlaskConical, emoji: '🧪' },
-  { path: '/specialisti', label: 'Specialisti', icon: Stethoscope, emoji: '🩺' },
-  { path: '/parafarmacia', label: 'Parafarmacia', icon: Store, emoji: '🏪' },
-  { path: '/anamnesi', label: 'Anamnesi', icon: ClipboardList, emoji: '📋' },
+  { path: '/ricavi', icon: '💰', label: 'Ricavi' },
+  { path: '/costi', icon: '📉', label: 'Costi' },
+  { path: '/contabilita', icon: '📊', label: 'Report' },
   { divider: true, label: 'Sistema' },
-  { path: '/config', label: 'Config', icon: Settings, emoji: '⚙️' },
-]
+  { path: '/config', icon: '⚙️', label: 'Configurazione', adminOnly: true },
+];
 
-export function Layout({ operatore, onLogout, onLogoutFull, children }: Props) {
-  const [collapsed, setCollapsed] = useState(false)
-  const [mobileOpen, setMobileOpen] = useState(false)
-  const location = useLocation()
-  const navigate = useNavigate()
+export default function Layout({
+  children,
+  operatore,
+  isAdmin,
+  onCambiaOperatore,
+  onLogout,
+  onLogoutFull,
+}: LayoutProps) {
+  const [collapsed, setCollapsed] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const location = useLocation();
 
   return (
-    <div className="h-screen flex overflow-hidden noise-bg">
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setMobileOpen(false)} />
-      )}
-
-      {/* Sidebar */}
+    <div className="flex h-screen bg-slate-900 text-white overflow-hidden">
+      {/* ─── SIDEBAR ─── */}
       <aside
-        className={`
-          fixed lg:relative z-50 h-full flex flex-col
-          bg-dac-deep border-r border-white/5
-          transition-all duration-300 ease-in-out
-          ${collapsed ? 'w-16' : 'w-56'}
-          ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-        `}
+        className={`${
+          collapsed ? 'w-16' : 'w-56'
+        } flex flex-col bg-slate-950 border-r border-slate-800 transition-all duration-200 flex-shrink-0`}
       >
-        {/* Header */}
-        <div className={`flex items-center gap-2.5 p-3 border-b border-white/5 flex-shrink-0 ${collapsed ? 'justify-center' : ''}`}>
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #1a5276, #2e86c1)' }}>
-            🏥
-          </div>
+        {/* Logo */}
+        <div className="flex items-center gap-2 px-3 py-4 border-b border-slate-800">
+          <span className="text-xl flex-shrink-0">🏥</span>
           {!collapsed && (
             <div className="min-w-0">
-              <div className="font-display font-bold text-sm text-white truncate">DAC Manager</div>
-              <div className="text-[10px] text-dac-gray-400 truncate">Palazzo della Salute</div>
+              <div className="text-sm font-bold text-white truncate">
+                Palazzo della Salute
+              </div>
+              <div className="text-[10px] text-slate-500">DAC Manager v1.3</div>
             </div>
           )}
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto py-2 px-2">
+        <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
           {NAV_ITEMS.map((item, i) => {
-            if ('divider' in item && item.divider) {
-              if (collapsed) return <div key={i} className="my-2 border-t border-white/5" />
+            if (item.divider) {
+              if (collapsed) return <div key={i} className="my-2 border-t border-slate-800" />;
               return (
-                <div key={i} className="mt-4 mb-1 px-2">
-                  <span className="text-[9px] font-semibold uppercase tracking-widest text-dac-gray-500">
-                    {item.label}
-                  </span>
+                <div
+                  key={i}
+                  className="px-2 pt-4 pb-1 text-[9px] uppercase tracking-wider text-slate-600 font-semibold"
+                >
+                  {item.label}
                 </div>
-              )
+              );
             }
 
-            const isActive = location.pathname === item.path
-            const Icon = item.icon!
+            if (item.adminOnly && !isAdmin) return null;
+
+            const isActive = location.pathname === item.path;
 
             return (
-              <button
+              <NavLink
                 key={item.path}
-                onClick={() => { navigate(item.path!); setMobileOpen(false) }}
-                className={`
-                  w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg mb-0.5
-                  text-sm font-medium transition-all duration-150
-                  ${isActive
-                    ? 'bg-dac-accent/15 text-dac-accent'
-                    : 'text-dac-gray-400 hover:text-white hover:bg-white/5'
-                  }
-                  ${collapsed ? 'justify-center' : ''}
-                `}
-                title={collapsed ? item.label : undefined}
+                to={item.path!}
+                className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all duration-150 ${
+                  isActive
+                    ? 'bg-blue-600/20 text-blue-400 font-medium'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
               >
-                <Icon size={18} className="flex-shrink-0" />
-                {!collapsed && <span className="truncate">{item.label}</span>}
-              </button>
-            )
+                <span className="text-base flex-shrink-0 w-6 text-center">
+                  {item.icon}
+                </span>
+                {!collapsed && (
+                  <span className="truncate">{item.label}</span>
+                )}
+                {isActive && !collapsed && (
+                  <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400" />
+                )}
+              </NavLink>
+            );
           })}
         </nav>
 
-        {/* Operatore + collapse */}
-        <div className="border-t border-white/5 p-2 flex-shrink-0">
-          {/* Operatore info */}
-          <div className={`flex items-center gap-2 px-2 py-2 rounded-lg bg-white/3 mb-2 ${collapsed ? 'justify-center' : ''}`}>
-            <span className="text-lg flex-shrink-0">{operatore.emoji}</span>
-            {!collapsed && (
-              <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold text-white truncate">{operatore.nome}</div>
-                <div className="text-[10px] text-dac-gray-500 truncate">{operatore.ruolo}</div>
+        {/* User section */}
+        <div className="border-t border-slate-800 p-2">
+          <div className="relative">
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="flex items-center gap-2 w-full px-2.5 py-2 rounded-lg hover:bg-slate-800/60 transition-colors"
+            >
+              <div className="w-7 h-7 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                {operatore.nome.charAt(0)}
               </div>
+              {!collapsed && (
+                <div className="min-w-0 text-left">
+                  <div className="text-xs font-medium text-white truncate">
+                    {operatore.nome}
+                  </div>
+                  <div className="text-[10px] text-slate-500 truncate">
+                    {operatore.settore || operatore.ruolo}
+                  </div>
+                </div>
+              )}
+            </button>
+
+            {/* User dropdown */}
+            {showUserMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowUserMenu(false)}
+                />
+                <div className="absolute bottom-full left-0 mb-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50 py-1">
+                  <div className="px-3 py-2 border-b border-slate-700">
+                    <div className="text-xs font-medium text-white">
+                      {operatore.nome}
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      {operatore.ruolo}
+                      {operatore.settore ? ` — ${operatore.settore}` : ''}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      onCambiaOperatore();
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-slate-300 hover:bg-slate-700 transition-colors"
+                  >
+                    <span>👤</span>
+                    <span>Cambia operatore</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowUserMenu(false);
+                      onLogoutFull();
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-xs text-red-400 hover:bg-slate-700 transition-colors"
+                  >
+                    <span>🚪</span>
+                    <span>Esci da Google</span>
+                  </button>
+                </div>
+              </>
             )}
           </div>
 
-          <div className={`flex ${collapsed ? 'flex-col items-center gap-1' : 'items-center justify-between'}`}>
-            <button
-              onClick={onLogout}
-              className="p-1.5 rounded-md text-dac-gray-500 hover:text-dac-orange hover:bg-dac-orange/10 transition-colors"
-              title="Cambia operatore"
-            >
-              <RefreshCw size={14} />
-            </button>
-            <button
-              onClick={onLogoutFull}
-              className="p-1.5 rounded-md text-dac-gray-500 hover:text-dac-red hover:bg-dac-red/10 transition-colors"
-              title="Esci"
-            >
-              <LogOut size={14} />
-            </button>
-            <button
-              onClick={() => setCollapsed(!collapsed)}
-              className="p-1.5 rounded-md text-dac-gray-500 hover:text-white hover:bg-white/5 transition-colors hidden lg:block"
-              title={collapsed ? 'Espandi' : 'Comprimi'}
-            >
-              {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-            </button>
-          </div>
+          {/* Collapse toggle */}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="w-full mt-1 px-2.5 py-1.5 text-slate-600 hover:text-slate-400 text-xs text-center transition-colors"
+          >
+            {collapsed ? '→' : '← Comprimi'}
+          </button>
         </div>
       </aside>
 
-      {/* Main content */}
-      <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* Top bar mobile */}
-        <div className="lg:hidden flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-dac-deep/50 backdrop-blur-sm flex-shrink-0">
-          <button
-            onClick={() => setMobileOpen(!mobileOpen)}
-            className="p-1 rounded-md text-dac-gray-400 hover:text-white"
-          >
-            {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
-          <span className="text-lg">🏥</span>
-          <span className="font-display font-bold text-sm text-white">DAC Manager</span>
-        </div>
-
-        {/* Page content */}
-        <div className="flex-1 overflow-y-auto">
-          {children}
-        </div>
-      </main>
+      {/* ─── MAIN CONTENT ─── */}
+      <main className="flex-1 overflow-y-auto bg-slate-900">{children}</main>
     </div>
-  )
+  );
 }
