@@ -33,7 +33,6 @@ export function ContabilitaPage({ operatore }: Props) {
   const [mese, setMese] = useState(startOfMonth(new Date()))
   const [ricavi, setRicavi] = useState<any[]>([])
   const [costi, setCosti] = useState<any[]>([])
-  const [cassaPF, setCassaPF] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [annuale, setAnnuale] = useState(false)
 
@@ -49,12 +48,11 @@ export function ContabilitaPage({ operatore }: Props) {
     setLoading(true)
     // Carica 12 mesi di dati per trend
     const inizioAnno = format(subYears(endOfMonth(mese), 1), 'yyyy-MM-dd')
-    const [r, c, pf] = await Promise.all([
+    const [r, c] = await Promise.all([
       supabase.from('ricavi').select('*').gte('data', inizioAnno).lte('data', fine).order('data'),
       supabase.from('costi').select('*').gte('data', inizioAnno).lte('data', fine).order('data'),
-      supabase.from('parafarmacia_cassa').select('*').gte('data', inizioAnno).lte('data', fine).order('data'),
     ])
-    setRicavi(r.data ?? []); setCosti(c.data ?? []); setCassaPF(pf.data ?? [])
+    setRicavi(r.data ?? []); setCosti(c.data ?? [])
     setLoading(false)
   }, [fine, mese])
 
@@ -63,9 +61,6 @@ export function ContabilitaPage({ operatore }: Props) {
   // Filtra periodo corrente
   const ricaviPeriodo = ricavi.filter(r => r.data >= inizio && r.data <= fine)
   const costiPeriodo = costi.filter(c => c.data >= inizio && c.data <= fine)
-  const pfEntrate = cassaPF.filter(p => p.data >= inizio && p.data <= fine && p.tipo === 'Entrata')
-  const pfUscite = cassaPF.filter(p => p.data >= inizio && p.data <= fine && p.tipo === 'Uscita')
-
   // Mese precedente
   const ricaviPrec = ricavi.filter(r => r.data >= mesePrecInizio && r.data <= mesePrecFine)
   const costiPrec = costi.filter(c => c.data >= mesePrecInizio && c.data <= mesePrecFine)
@@ -95,7 +90,7 @@ export function ContabilitaPage({ operatore }: Props) {
       const cos = costi.filter(c => c.data >= mi && c.data <= mf).reduce((s, c) => s + Number(c.importo), 0)
       return { mese: format(m, 'MMM yy', { locale: it }), ricavi: ric, costi: cos, margine: ric - cos }
     })
-  }, [ricavi, costi, cassaPF, mese])
+  }, [ricavi, costi, mese])
 
   // Per reparto
   const perReparto = useMemo(() => {
@@ -156,9 +151,9 @@ export function ContabilitaPage({ operatore }: Props) {
       <div className="flex-1 overflow-auto p-4 lg:p-6">
         {loading ? <LoadingGrid /> :
           tab === 'overview' ? <OverviewTab totRicavi={totRicavi} totCosti={totCosti} margine={margine} marginePct={marginePct} varRicavi={varRicavi} varCosti={varCosti} varMargine={varMargine} trendData={trendData} perReparto={perReparto} nTransazioni={ricaviPeriodo.length} />
-          : tab === 'pl' ? <PLTab trendData={trendData} costiPerCat={costiPerCat} totRicavi={totRicavi} totCosti={totCosti} margine={margine} pfEntrate={pfEntrate.reduce((s, p) => s + Number(p.importo), 0)} pfUscite={pfUscite.reduce((s, p) => s + Number(p.importo), 0)} ricaviPeriodo={ricaviPeriodo} costiPeriodo={costiPeriodo} />
+          : tab === 'pl' ? <PLTab trendData={trendData} costiPerCat={costiPerCat} totRicavi={totRicavi} totCosti={totCosti} margine={margine} ricaviPeriodo={ricaviPeriodo} costiPeriodo={costiPeriodo} />
           : tab === 'reparti' ? <RepartiTab perReparto={perReparto} totRicavi={totRicavi} ricaviPeriodo={ricaviPeriodo} />
-          : <CashFlowTab ricaviPeriodo={ricaviPeriodo} costiPeriodo={costiPeriodo} pfEntrate={pfEntrate} pfUscite={pfUscite} trendData={trendData} />
+          : <CashFlowTab ricaviPeriodo={ricaviPeriodo} costiPeriodo={costiPeriodo} trendData={trendData} />
         }
       </div>
     </div>
@@ -231,7 +226,7 @@ function OverviewTab({ totRicavi, totCosti, margine, marginePct, varRicavi, varC
 // ═══════════════════════════════════════════════════════════
 // TAB P&L (CONTO ECONOMICO)
 // ═══════════════════════════════════════════════════════════
-function PLTab({ trendData, costiPerCat, totRicavi, totCosti, margine, pfEntrate, pfUscite, ricaviPeriodo, costiPeriodo }: any) {
+function PLTab({ trendData, costiPerCat, totRicavi, totCosti, margine, ricaviPeriodo, costiPeriodo }: any) {
   // Ricavi per reparto
   const ricPerRep: Record<string, number> = {}
   ricaviPeriodo.forEach((r: any) => { const rep = r.reparto || 'Altro'; ricPerRep[rep] = (ricPerRep[rep] || 0) + Number(r.importo) })
@@ -248,14 +243,12 @@ function PLTab({ trendData, costiPerCat, totRicavi, totCosti, margine, pfEntrate
             {Object.entries(ricPerRep).sort(([, a], [, b]) => (b as number) - (a as number)).map(([rep, val]) => (
               <PLRow key={rep} label={rep} value={val as number} />
             ))}
-            {/* pfEntrate già nei ricavi via trigger */}
             <PLRow label="TOTALE RICAVI" value={totRicavi} bold color="#27ae60" />
           </PLSection>
 
           {/* COSTI */}
           <PLSection title="COSTI OPERATIVI" color="#e74c3c" bold>
             {costiPerCat.map((c: any) => <PLRow key={c.name} label={c.name} value={-c.value} />)}
-            {/* pfUscite gestite separatamente */}
             <PLRow label="TOTALE COSTI" value={-totCosti} bold color="#e74c3c" />
           </PLSection>
 
@@ -373,7 +366,7 @@ function RepartiTab({ perReparto, totRicavi, ricaviPeriodo }: any) {
 // ═══════════════════════════════════════════════════════════
 // TAB CASH FLOW
 // ═══════════════════════════════════════════════════════════
-function CashFlowTab({ ricaviPeriodo, costiPeriodo, pfEntrate, pfUscite, trendData }: any) {
+function CashFlowTab({ ricaviPeriodo, costiPeriodo, trendData }: any) {
   // Per metodo pagamento
   const perMetodo: Record<string, number> = {}
   ricaviPeriodo.forEach((r: any) => { const m = r.metodo || 'Non specificato'; perMetodo[m] = (perMetodo[m] || 0) + Number(r.importo) })
