@@ -22,7 +22,7 @@ let AnamnesiComp: React.ComponentType<any>;
 try {
   AnamnesiComp = require('./pages/Anamnesi').Anamnesi || require('./pages/Anamnesi').default;
 } catch {
-  AnamnesiComp = () => <div className="p-8 text-white">Anamnesi — coming soon</div>;
+  AnamnesiComp = () => <div className="p-8 text-white">Anamnesi</div>;
 }
 
 export default function App() {
@@ -59,29 +59,31 @@ export default function App() {
     );
   }
 
+  const o = operatore;
+
   return (
     <BrowserRouter>
       <Layout
-        operatore={operatore}
+        operatore={o}
         isAdmin={isAdmin}
         onCambiaOperatore={cambiaOperatore}
         onLogout={logout}
         onLogoutFull={logoutFull}
       >
         <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/agenda" element={<Agenda />} />
-          <Route path="/pazienti" element={<Pazienti />} />
-          <Route path="/task" element={<TaskManager />} />
-          <Route path="/inventario" element={<Inventario />} />
-          <Route path="/specialisti" element={<Specialisti />} />
-          <Route path="/anamnesi" element={<AnamnesiComp />} />
-          <Route path="/pacchetti" element={<PacchettiPage />} />
-          <Route path="/ricavi" element={<RicaviPage />} />
-          <Route path="/costi" element={<CostiPage />} />
-          <Route path="/parafarmacia" element={<ParafarmaciaPage />} />
-          <Route path="/contabilita" element={<ContabilitaPage />} />
-          <Route path="/config" element={<ConfigPage />} />
+          <Route path="/" element={<Dashboard operatore={o} />} />
+          <Route path="/agenda" element={<Agenda operatore={o} />} />
+          <Route path="/pazienti" element={<Pazienti operatore={o} />} />
+          <Route path="/task" element={<TaskManager operatore={o} />} />
+          <Route path="/inventario" element={<Inventario operatore={o} />} />
+          <Route path="/specialisti" element={<Specialisti operatore={o} />} />
+          <Route path="/anamnesi" element={<AnamnesiComp operatore={o} />} />
+          <Route path="/pacchetti" element={<PacchettiPage operatore={o} />} />
+          <Route path="/ricavi" element={<RicaviPage operatore={o} />} />
+          <Route path="/costi" element={<CostiPage operatore={o} />} />
+          <Route path="/parafarmacia" element={<ParafarmaciaPage operatore={o} />} />
+          <Route path="/contabilita" element={<ContabilitaPage operatore={o} />} />
+          <Route path="/config" element={<ConfigPage operatore={o} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

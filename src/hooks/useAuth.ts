@@ -9,7 +9,10 @@ export interface Operatore {
   settore: string;
   email: string;
   attivo: boolean;
-  avatar_emoji?: string;
+  emoji: string;
+  colore: string;
+  colore_bordo: string;
+  area: string;
 }
 
 interface AuthState {
@@ -33,14 +36,12 @@ export function useAuth() {
     needsOperatoreSelection: false,
   });
 
-  // ─── Carica operatori attivi da DB ───
   const loadOperatori = useCallback(async (): Promise<Operatore[]> => {
     const { data, error } = await supabase
       .from('operatori')
-      .select('id, nome, ruolo, settore, email, attivo')
+      .select('id, nome, ruolo, settore, email, attivo, emoji, colore, colore_bordo, area')
       .eq('attivo', true)
       .order('nome');
-
     if (error) {
       console.error('Errore caricamento operatori:', error);
       return [];
@@ -48,7 +49,6 @@ export function useAuth() {
     return (data || []) as Operatore[];
   }, []);
 
-  // ─── Prova a ripristinare operatore da localStorage ───
   const tryRestoreOperatore = useCallback(
     (operatori: Operatore[]): Operatore | null => {
       const savedId = localStorage.getItem(STORAGE_KEY);
@@ -58,155 +58,60 @@ export function useAuth() {
     []
   );
 
-  // ─── Init: ascolta auth state changes ───
   useEffect(() => {
     let mounted = true;
-
     const init = async () => {
-      // Recupera sessione attuale
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
+      const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        if (mounted) {
-          setState({
-            loading: false,
-            session: null,
-            user: null,
-            operatore: null,
-            operatori: [],
-            needsOperatoreSelection: false,
-          });
-        }
+        if (mounted) setState({ loading: false, session: null, user: null, operatore: null, operatori: [], needsOperatoreSelection: false });
         return;
       }
-
-      // Sessione attiva → carica operatori
       const ops = await loadOperatori();
       const restored = tryRestoreOperatore(ops);
-
-      if (mounted) {
-        setState({
-          loading: false,
-          session,
-          user: session.user,
-          operatore: restored,
-          operatori: ops,
-          needsOperatoreSelection: !restored,
-        });
-      }
+      if (mounted) setState({ loading: false, session, user: session.user, operatore: restored, operatori: ops, needsOperatoreSelection: !restored });
     };
-
     init();
-
-    // Listener per cambio auth (login, logout, token refresh)
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
-
       if (!session) {
         localStorage.removeItem(STORAGE_KEY);
-        setState({
-          loading: false,
-          session: null,
-          user: null,
-          operatore: null,
-          operatori: [],
-          needsOperatoreSelection: false,
-        });
+        setState({ loading: false, session: null, user: null, operatore: null, operatori: [], needsOperatoreSelection: false });
         return;
       }
-
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         const ops = await loadOperatori();
         const restored = tryRestoreOperatore(ops);
-        setState({
-          loading: false,
-          session,
-          user: session.user,
-          operatore: restored,
-          operatori: ops,
-          needsOperatoreSelection: !restored,
-        });
+        setState({ loading: false, session, user: session.user, operatore: restored, operatori: ops, needsOperatoreSelection: !restored });
       }
     });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    return () => { mounted = false; subscription.unsubscribe(); };
   }, [loadOperatori, tryRestoreOperatore]);
 
-  // ─── Login con Google ───
   const loginWithGoogle = useCallback(async () => {
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (error) {
-      console.error('Errore login Google:', error);
-      throw error;
-    }
+    const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
+    if (error) throw error;
   }, []);
 
-  // ─── Seleziona operatore (dopo login Google) ───
-  const selectOperatore = useCallback(
-    (operatore: Operatore) => {
-      localStorage.setItem(STORAGE_KEY, operatore.id);
-      setState((prev) => ({
-        ...prev,
-        operatore,
-        needsOperatoreSelection: false,
-      }));
-    },
-    []
-  );
+  const selectOperatore = useCallback((op: Operatore) => {
+    localStorage.setItem(STORAGE_KEY, op.id);
+    setState((prev) => ({ ...prev, operatore: op, needsOperatoreSelection: false }));
+  }, []);
 
-  // ─── Cambia operatore (torna alla selezione) ───
   const cambiaOperatore = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
-    setState((prev) => ({
-      ...prev,
-      operatore: null,
-      needsOperatoreSelection: true,
-    }));
+    setState((prev) => ({ ...prev, operatore: null, needsOperatoreSelection: true }));
   }, []);
 
-  // ─── Logout (solo operatore, resta loggato Google) ───
   const logout = useCallback(() => {
     localStorage.removeItem(STORAGE_KEY);
-    setState((prev) => ({
-      ...prev,
-      operatore: null,
-      needsOperatoreSelection: true,
-    }));
+    setState((prev) => ({ ...prev, operatore: null, needsOperatoreSelection: true }));
   }, []);
 
-  // ─── Logout completo (Google + operatore) ───
   const logoutFull = useCallback(async () => {
     localStorage.removeItem(STORAGE_KEY);
     await supabase.auth.signOut();
-    setState({
-      loading: false,
-      session: null,
-      user: null,
-      operatore: null,
-      operatori: [],
-      needsOperatoreSelection: false,
-    });
+    setState({ loading: false, session: null, user: null, operatore: null, operatori: [], needsOperatoreSelection: false });
   }, []);
 
-  return {
-    ...state,
-    isAdmin: state.operatore?.ruolo === 'admin',
-    loginWithGoogle,
-    selectOperatore,
-    cambiaOperatore,
-    logout,
-    logoutFull,
-  };
+  return { ...state, isAdmin: state.operatore?.ruolo === 'admin', loginWithGoogle, selectOperatore, cambiaOperatore, logout, logoutFull };
 }
