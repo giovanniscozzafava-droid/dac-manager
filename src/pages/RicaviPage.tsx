@@ -91,7 +91,7 @@ export function RicaviPage({ operatore }: Props) {
                 <div className={`text-sm font-bold ${Number(r.importo) < 0 ? 'text-dac-red' : 'text-dac-green'}`}>€{Number(r.importo).toLocaleString('it-IT')}</div>
                 {r.metodo && <div className="text-[9px] text-dac-gray-500">{r.metodo}</div>}
               </div>
-              <button onClick={async () => { if (confirm('Eliminare?')) { await supabase.from('ricavi').delete().eq('id', r.id); load() } }}
+              <button onClick={async () => { if (confirm('Eliminare ricavo? Se auto-generato potrebbe ricrearsi.')) { await supabase.from('ricavi').delete().eq('id', r.id); load() } }}
                 className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red flex-shrink-0"><Trash2 size={13} /></button>
             </div>
           ))}

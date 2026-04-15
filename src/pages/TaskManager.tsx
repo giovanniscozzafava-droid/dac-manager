@@ -36,9 +36,6 @@ const TIPI = [
   '📄 Amministrazione', '🎯 Libero'
 ]
 
-const ADMIN_EMAILS = ['giovanni.scozzafava@gmail.com']
-const ADMIN_NOMI = ['Daniela', 'Teresa', 'Giovanni (Tester)']
-
 const STATO_CONFIG: Record<string, { colore: string; bg: string; icon: string }> = {
   'Da fare':    { colore: '#e74c3c', bg: 'rgba(231,76,60,0.08)', icon: '🔴' },
   'In corso':   { colore: '#f39c12', bg: 'rgba(243,156,18,0.08)', icon: '🟡' },
@@ -97,7 +94,7 @@ export function TaskManager({ operatore }: Props) {
   const [dragTaskId, setDragTaskId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
 
-  const isAdmin = operatore.ruolo === 'admin' || ADMIN_EMAILS.includes(operatore.email ?? '') || ADMIN_NOMI.includes(operatore.nome)
+  const isAdmin = operatore.ruolo === 'admin'
 
   const loadTasks = useCallback(async () => {
     setLoading(true)
@@ -309,16 +306,16 @@ function TaskCard({ task, tick, showAssegnato, onClick, onForward, onBack, onDra
       onDragEnd={onDragEnd}
       onClick={onClick}
       className={`rounded-lg p-2.5 cursor-grab active:cursor-grabbing transition-all hover:shadow-lg hover:-translate-y-0.5
-        bg-white border-l-[3px] select-none ${countdown?.scaduto ? 'bg-red-50' : ''}`}
+        bg-dac-card/80 border-l-[3px] select-none ${countdown?.scaduto ? 'bg-dac-red/10' : ''}`}
       style={{ borderLeftColor: prio.colore }}>
 
       {showAssegnato && (
         <div className="flex items-center gap-1 mb-1">
-          <User size={9} className="text-gray-400" />
-          <span className="text-[8px] font-bold text-gray-500 uppercase tracking-wider">{task.assegnato_a_nome}</span>
+          <User size={9} className="text-dac-gray-400" />
+          <span className="text-[8px] font-bold text-dac-gray-500 uppercase tracking-wider">{task.assegnato_a_nome}</span>
         </div>
       )}
-      <div className="text-[11px] font-semibold text-gray-800 leading-snug mb-1.5 line-clamp-2">{task.descrizione}</div>
+      <div className="text-[11px] font-semibold text-white leading-snug mb-1.5 line-clamp-2">{task.descrizione}</div>
 
       {countdown && (
         <div className="mb-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold"
@@ -329,21 +326,21 @@ function TaskCard({ task, tick, showAssegnato, onClick, onForward, onBack, onDra
 
       <div className="flex flex-wrap gap-1 mb-1.5">
         {task.tipo && task.tipo !== '🎯 Libero' && (
-          <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-purple-50 text-purple-700">{task.tipo}</span>
+          <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-purple-500/15 text-purple-300">{task.tipo}</span>
         )}
         {task.paziente_nome && (
-          <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-teal-50 text-teal-700">{task.paziente_nome}</span>
+          <span className="px-1.5 py-0.5 rounded text-[8px] font-semibold bg-teal-500/15 text-teal-300">{task.paziente_nome}</span>
         )}
       </div>
 
-      <div className="flex items-center justify-between pt-1 border-t border-gray-100">
-        <span className="text-[9px] text-gray-400">{!showAssegnato && task.assegnato_da ? `da ${task.assegnato_da}` : ''}</span>
+      <div className="flex items-center justify-between pt-1 border-t border-white/5">
+        <span className="text-[9px] text-dac-gray-400">{!showAssegnato && task.assegnato_da ? `da ${task.assegnato_da}` : ''}</span>
         <div className="flex gap-0.5" onClick={e => e.stopPropagation()} onDragStart={e => e.stopPropagation()}>
           {task.stato !== 'Da fare' && (
-            <button onClick={onBack} className="px-1.5 py-0.5 rounded text-[10px] text-gray-400 hover:bg-amber-50 hover:text-amber-600 transition-colors">◀</button>
+            <button onClick={onBack} className="px-1.5 py-0.5 rounded text-[10px] text-dac-gray-400 hover:bg-amber-500/15 hover:text-amber-300 transition-colors">◀</button>
           )}
           {task.stato !== 'Completato' && (
-            <button onClick={onForward} className="px-1.5 py-0.5 rounded text-[10px] text-gray-400 hover:bg-green-50 hover:text-green-600 transition-colors">▶</button>
+            <button onClick={onForward} className="px-1.5 py-0.5 rounded text-[10px] text-dac-gray-400 hover:bg-green-500/15 hover:text-green-300 transition-colors">▶</button>
           )}
         </div>
       </div>

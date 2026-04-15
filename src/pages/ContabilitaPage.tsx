@@ -71,8 +71,8 @@ export function ContabilitaPage({ operatore }: Props) {
   const costiPrec = costi.filter(c => c.data >= mesePrecInizio && c.data <= mesePrecFine)
 
   // Totali
-  const totRicavi = ricaviPeriodo.reduce((s, r) => s + Number(r.importo), 0) + pfEntrate.reduce((s, p) => s + Number(p.importo), 0)
-  const totCosti = costiPeriodo.reduce((s, c) => s + Number(c.importo), 0) + pfUscite.reduce((s, p) => s + Number(p.importo), 0)
+  const totRicavi = ricaviPeriodo.reduce((s, r) => s + Number(r.importo), 0)
+  const totCosti = costiPeriodo.reduce((s, c) => s + Number(c.importo), 0)
   const margine = totRicavi - totCosti
   const marginePct = totRicavi > 0 ? (margine / totRicavi) * 100 : 0
 
@@ -93,9 +93,7 @@ export function ContabilitaPage({ operatore }: Props) {
       const mf = format(endOfMonth(m), 'yyyy-MM-dd')
       const ric = ricavi.filter(r => r.data >= mi && r.data <= mf).reduce((s, r) => s + Number(r.importo), 0)
       const cos = costi.filter(c => c.data >= mi && c.data <= mf).reduce((s, c) => s + Number(c.importo), 0)
-      const pfE = cassaPF.filter(p => p.data >= mi && p.data <= mf && p.tipo === 'Entrata').reduce((s, p) => s + Number(p.importo), 0)
-      const pfU = cassaPF.filter(p => p.data >= mi && p.data <= mf && p.tipo === 'Uscita').reduce((s, p) => s + Number(p.importo), 0)
-      return { mese: format(m, 'MMM yy', { locale: it }), ricavi: ric + pfE, costi: cos + pfU, margine: (ric + pfE) - (cos + pfU) }
+      return { mese: format(m, 'MMM yy', { locale: it }), ricavi: ric, costi: cos, margine: ric - cos }
     })
   }, [ricavi, costi, cassaPF, mese])
 
@@ -250,14 +248,14 @@ function PLTab({ trendData, costiPerCat, totRicavi, totCosti, margine, pfEntrate
             {Object.entries(ricPerRep).sort(([, a], [, b]) => (b as number) - (a as number)).map(([rep, val]) => (
               <PLRow key={rep} label={rep} value={val as number} />
             ))}
-            {pfEntrate > 0 && <PLRow label="Parafarmacia (cassa)" value={pfEntrate} />}
+            {/* pfEntrate già nei ricavi via trigger */}
             <PLRow label="TOTALE RICAVI" value={totRicavi} bold color="#27ae60" />
           </PLSection>
 
           {/* COSTI */}
           <PLSection title="COSTI OPERATIVI" color="#e74c3c" bold>
             {costiPerCat.map((c: any) => <PLRow key={c.name} label={c.name} value={-c.value} />)}
-            {pfUscite > 0 && <PLRow label="Parafarmacia (uscite)" value={-pfUscite} />}
+            {/* pfUscite gestite separatamente */}
             <PLRow label="TOTALE COSTI" value={-totCosti} bold color="#e74c3c" />
           </PLSection>
 
@@ -379,7 +377,6 @@ function CashFlowTab({ ricaviPeriodo, costiPeriodo, pfEntrate, pfUscite, trendDa
   // Per metodo pagamento
   const perMetodo: Record<string, number> = {}
   ricaviPeriodo.forEach((r: any) => { const m = r.metodo || 'Non specificato'; perMetodo[m] = (perMetodo[m] || 0) + Number(r.importo) })
-  pfEntrate.forEach((p: any) => { const m = p.metodo || 'Non specificato'; perMetodo[m] = (perMetodo[m] || 0) + Number(p.importo) })
 
   const metodoData = Object.entries(perMetodo).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
   const METODO_COLORS = ['#3498db', '#27ae60', '#f39c12', '#e74c3c', '#8e44ad', '#95a5a6']

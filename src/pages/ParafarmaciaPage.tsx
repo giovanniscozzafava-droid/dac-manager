@@ -119,7 +119,7 @@ function CassaTab({ operatore }: { operatore: Operatore }) {
               <div className="text-[10px] text-dac-gray-400">{item.operatore_nome ?? '—'}{item.metodo ? ` • ${item.metodo}` : ''}{item.note ? ` • ${item.note}` : ''}</div>
             </div>
             <div className={`text-sm font-bold ${item.tipo === 'Entrata' ? 'text-dac-green' : 'text-dac-red'}`}>{item.tipo === 'Entrata' ? '+' : '-'}€{Number(item.importo).toLocaleString('it-IT')}</div>
-            <button onClick={async () => { if (confirm('Eliminare?')) { await supabase.from('parafarmacia_cassa').delete().eq('id', item.id); load() } }}
+            <button onClick={async () => { if (confirm('Eliminare? Il ricavo mirror NON verrà rimosso.')) { await supabase.from('parafarmacia_cassa').delete().eq('id', item.id); load() } }}
               className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={13} /></button>
           </div>
         ))}</div>}

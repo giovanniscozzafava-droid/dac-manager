@@ -47,7 +47,7 @@ export function Dashboard({ operatore }: Props) {
       supabase.from('appuntamenti').select('id').eq('data', oggiStr),
       supabase.from('task').select('id').in('stato', ['Da fare', 'In corso', 'In attesa']).lt('scadenza', oggiStr),
       supabase.from('pazienti').select('id').gte('created_at', inizioMese),
-      supabase.from('task').select('stato').gte('data_creazione', inizioMese),
+      supabase.from('task').select('stato').gte('created_at', inizioMese),
       supabase.from('inventario').select('id').neq('stato', '✅ OK'),
     ])
 
@@ -118,7 +118,7 @@ export function Dashboard({ operatore }: Props) {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="font-display text-xl lg:text-2xl font-bold text-white">
-              Buongiorno, {operatore.nome} {operatore.emoji}
+              Buongiorno, {operatore.nome} {operatore.emoji || '👤'}
             </h1>
             <p className="text-dac-gray-400 text-sm mt-0.5">
               {format(new Date(), "EEEE d MMMM yyyy", { locale: it })} — Palazzo della Salute

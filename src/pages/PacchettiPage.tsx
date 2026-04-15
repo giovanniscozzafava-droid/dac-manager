@@ -56,11 +56,11 @@ export function PacchettiPage({ operatore }: Props) {
 
   function onSaved() { setShowForm(false); setEditItem(null); setSelected(null); load() }
 
-  async function registraSeduta(pkg: Pacchetto) {
+  async function registraSeduta(pkg: Pacchetto) { if (!confirm('Registrare seduta per ' + pkg.nome_pacchetto + '?')) return;
     if (pkg.sedute_fatte >= pkg.sedute_totali) { alert('Tutte le sedute completate'); return }
     const nuoveFatte = pkg.sedute_fatte + 1
     const nuovoStato = nuoveFatte >= pkg.sedute_totali ? 'Completato' : 'Attivo'
-    await supabase.from('pacchetti').update({ sedute_fatte: nuoveFatte, stato: nuovoStato }).eq('id', pkg.id)
+    await supabase.from('pacchetti').update({ sedute_fatte: nuoveFatte, sedute_rimaste: pkg.sedute_totali - nuoveFatte, stato: nuovoStato }).eq('id', pkg.id)
     load()
   }
 

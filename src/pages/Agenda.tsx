@@ -151,7 +151,7 @@ export function Agenda({ operatore }: Props) {
   }
 
   // ── Cambio stato rapido ──
-  async function cambiaStato(appId: string, nuovoStato: string) {
+  async function cambiaStato(appId: string, nuovoStato: string) { if ((nuovoStato === 'Completato' || nuovoStato === 'No-show') && !confirm('Confermi ' + nuovoStato + '? Azione irreversibile.')) return;
     await supabase.from('appuntamenti').update({ stato: nuovoStato }).eq('id', appId)
     setSelectedApp(null)
     loadAppuntamenti()

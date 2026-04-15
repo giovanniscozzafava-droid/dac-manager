@@ -85,7 +85,7 @@ function OperatoriTab() {
               {op.attivo ? <ToggleRight size={20} className="text-dac-green" /> : <ToggleLeft size={20} />}
             </button>
             <button onClick={() => { setEditItem(op); setShowForm(true) }} className="p-1.5 rounded-md hover:bg-white/10 text-dac-gray-400"><Edit3 size={13} /></button>
-            <button onClick={async () => { if (confirm(`Eliminare ${op.nome}?`)) { await supabase.from('operatori').delete().eq('id', op.id); load() } }}
+            <button onClick={async () => { if (op.ruolo === 'admin') { alert('Non puoi eliminare un admin'); } else if (confirm(`Eliminare ${op.nome}?`)) { await supabase.from('operatori').delete().eq('id', op.id); load() } }}
               className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={13} /></button>
           </div>
         </div>
