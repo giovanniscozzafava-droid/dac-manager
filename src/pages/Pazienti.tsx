@@ -8,6 +8,7 @@ import {
   MapPin, Shield, AlertTriangle, FileText, ClipboardList,
   Check, Trash2, Filter, Download, Hash
 } from 'lucide-react'
+import { GDPRDocument } from '@/components/GDPRDocument'
 
 interface Paziente {
   id: string
@@ -256,6 +257,9 @@ export function Pazienti({ operatore }: Props) {
 function DettaglioPaziente({ paziente: p, onClose, onEdit, onDeleted }: {
   paziente: Paziente; onClose: () => void; onEdit: () => void; onDeleted: () => void
 }) {
+  const [showGDPR, setShowGDPR] = useState(false)
+  const [gdprFirmato, setGdprFirmato] = useState(p.gdpr === 'firmato')
+
   async function elimina() {
     if (!confirm(`Eliminare ${p.cognome} ${p.nome}? L'operazione è irreversibile.`)) return
     await supabase.from('pazienti').update({ archiviato: true }).eq('id', p.id)
@@ -305,7 +309,7 @@ function DettaglioPaziente({ paziente: p, onClose, onEdit, onDeleted }: {
             <InfoRow label="Tipo" value={p.tipo || '—'} />
             <InfoRow label="Provenienza" value={p.provenienza || '—'} />
             <InfoRow label="Prima visita" value={primaVisita} />
-            <InfoRow label="GDPR" value={p.gdpr === 'firmato' ? '✅ Firmato' : '❌ Mancante'} />
+            <InfoRow label="GDPR" value={gdprFirmato ? '✅ Firmato' : '❌ Mancante'} />
           </Section>
 
           {/* Anamnesi */}
@@ -337,13 +341,24 @@ function DettaglioPaziente({ paziente: p, onClose, onEdit, onDeleted }: {
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-white/5 flex-shrink-0">
+        <div className="p-4 border-t border-white/5 flex-shrink-0 space-y-2">
+          <button onClick={() => setShowGDPR(true)}
+            className="w-full py-2 rounded-xl text-xs font-semibold text-white bg-dac-accent/80 hover:bg-dac-accent transition-colors flex items-center justify-center gap-2">
+            <FileText size={14} /> {gdprFirmato ? 'Ri-firma GDPR' : 'Firma GDPR'}
+          </button>
           <button onClick={elimina}
             className="w-full py-2 rounded-xl text-xs font-semibold text-dac-red bg-dac-red/10 hover:bg-dac-red/20 transition-colors">
             🗑️ Archivia Paziente
           </button>
         </div>
       </div>
+      {showGDPR && (
+        <GDPRDocument
+          paziente={{ id: p.id, nome: p.nome, cognome: p.cognome, codice_fiscale: p.codice_fiscale, data_nascita: p.data_nascita }}
+          onClose={() => setShowGDPR(false)}
+          onSigned={() => { setGdprFirmato(true); setShowGDPR(false) }}
+        />
+      )}
     </>
   )
 }
