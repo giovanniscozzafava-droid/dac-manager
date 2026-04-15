@@ -27,8 +27,8 @@ const STRUTTURA = {
 
 export function GDPRDocument({ paziente, onClose, onSigned }: Props) {
   const sigRef = useRef<SignatureCanvas>(null)
-  const [consSanitari, setConsSanitari] = useState(false)
-  const [consTerzi, setConsTerzi] = useState(false)
+  const consSanitari = true
+  const consTerzi = true
   const [consMarketing, setConsMarketing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -60,25 +60,54 @@ export function GDPRDocument({ paziente, onClose, onSigned }: Props) {
     doc.text(`Codice Fiscale: ${paziente.codice_fiscale || '—'}`, M, y); doc.text(`Data nascita: ${dn}`, W / 2, y); y += 8
 
     doc.setFont('helvetica', 'bold')
-    doc.text('Informativa ex art. 13-14 GDPR per trattamento dati sanitari', M, y); y += 5
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9)
+    doc.text('Informativa ex artt. 13-14 Reg. UE 2016/679 (GDPR)', M, y); y += 5
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5)
     const informativa = [
-      `Il Titolare del trattamento è ${STRUTTURA.titolare}, con sede in ${STRUTTURA.indirizzo}.`,
-      'I dati personali e sanitari (categorie particolari ex art. 9 GDPR) sono trattati per finalità di',
-      'prevenzione, diagnosi, cura, riabilitazione, gestione amministrativa della prestazione sanitaria e',
-      'adempimenti di legge (fatturazione, conservazione cartelle cliniche, obblighi fiscali e previdenziali).',
-      'Base giuridica: art. 6 lett. b-c-e e art. 9 lett. h GDPR (finalità di cura da parte di professionisti',
-      'sanitari tenuti al segreto professionale).',
-      'I dati potranno essere comunicati a: professionisti sanitari collaboratori, laboratori di analisi,',
-      'enti assicurativi/previdenziali, pubbliche amministrazioni, autorità sanitarie, consulenti fiscali.',
-      'I dati sono conservati per il tempo previsto dalla normativa sanitaria (minimo 10 anni cartella clinica).',
-      'Diritti dell\'interessato (artt. 15-22 GDPR): accesso, rettifica, cancellazione, limitazione, portabilità,',
-      'opposizione e reclamo al Garante Privacy (www.garanteprivacy.it).',
-      'Il conferimento dei dati per finalità di cura è necessario: il rifiuto comporta impossibilità di erogare',
-      'la prestazione sanitaria. Il conferimento per finalità di marketing è facoltativo.',
+      `1. TITOLARE DEL TRATTAMENTO. ${STRUTTURA.titolare}, con sede in ${STRUTTURA.indirizzo}, è Titolare del`,
+      'trattamento dei dati personali dell\'interessato. Contatti reperibili presso la segreteria della struttura.',
+      '',
+      '2. CATEGORIE DI DATI. Sono trattati dati anagrafici, di contatto, fiscali e — in quanto categoria',
+      'particolare ex art. 9 GDPR — dati relativi alla salute: anamnesi, referti, esiti diagnostici, prescrizioni,',
+      'immagini diagnostiche, dati di medicina del lavoro e idoneità alla mansione.',
+      '',
+      '3. FINALITÀ E BASE GIURIDICA. I dati sono trattati per: (a) prevenzione, diagnosi, cura, riabilitazione',
+      'e prestazione sanitaria; (b) sorveglianza sanitaria e medicina del lavoro ex D.Lgs. 81/2008; (c)',
+      'adempimenti amministrativi, fiscali e contabili; (d) gestione contenzioso e difesa in giudizio.',
+      'Base giuridica: art. 9 par. 2 lett. h GDPR (finalità di medicina preventiva, diagnosi, assistenza',
+      'o terapia sanitaria da parte di professionisti soggetti al segreto professionale) e D.Lgs. 196/2003',
+      'come modificato dal D.Lgs. 101/2018; art. 6 par. 1 lett. b-c-e GDPR per finalità connesse.',
+      '',
+      '4. DESTINATARI E COMUNICAZIONE. I dati potranno essere comunicati a: medici e professionisti sanitari',
+      'collaboratori tenuti al segreto professionale, laboratori di analisi e specialisti esterni per',
+      'consulto o esecuzione di prestazioni, enti assicurativi e previdenziali (INAIL, INPS, ASP, ATS),',
+      'Autorità sanitarie competenti, consulenti fiscali, responsabili esterni del trattamento nominati',
+      'ex art. 28 GDPR (fornitori IT, cloud, software gestionali sanitari). Non è previsto trasferimento',
+      'extra-UE; eventuali trasferimenti avverranno con garanzie ex artt. 44-49 GDPR.',
+      '',
+      '5. CONSERVAZIONE. I dati sanitari e le cartelle cliniche sono conservati per almeno 10 anni dalla',
+      'chiusura (Circ. Min. Sanità 61/1986 e giurisprudenza consolidata). I dati di medicina del lavoro',
+      'sono conservati 20 anni dalla cessazione del rapporto (art. 41 D.Lgs. 81/2008 e All. 3A). I dati',
+      'fiscali-amministrativi 10 anni ex art. 2220 c.c. Decorsi i termini i dati sono cancellati o',
+      'anonimizzati, salvo ulteriori obblighi di legge.',
+      '',
+      '6. DIRITTI DELL\'INTERESSATO. Artt. 15-22 GDPR: accesso ai dati, rettifica, cancellazione (nei limiti',
+      'degli obblighi di conservazione sanitaria), limitazione, portabilità, opposizione e revoca del',
+      'consenso in qualunque momento (senza pregiudicare la liceità del trattamento precedente). Diritto',
+      'di reclamo al Garante per la Protezione dei Dati Personali (www.garanteprivacy.it).',
+      '',
+      '7. CONFERIMENTO. Il conferimento dei dati per le finalità di cura e sorveglianza sanitaria è',
+      'necessario: il rifiuto comporta l\'impossibilità di erogare la prestazione. Il conferimento per',
+      'marketing e recall è facoltativo e non pregiudica la prestazione sanitaria.',
+      '',
+      '8. PROCESSI DECISIONALI AUTOMATIZZATI. Non sono in uso processi decisionali interamente automatizzati',
+      'ex art. 22 GDPR.',
     ]
-    for (const ln of informativa) { doc.text(ln, M, y); y += 4 }
+    for (const ln of informativa) {
+      if (y > 280) { doc.addPage(); y = 18 }
+      doc.text(ln, M, y); y += 3.8
+    }
     y += 3
+    if (y > 250) { doc.addPage(); y = 18 }
 
     doc.setFont('helvetica', 'bold'); doc.setFontSize(10)
     doc.text('Consensi espressi', M, y); y += 6
@@ -153,26 +182,36 @@ export function GDPRDocument({ paziente, onClose, onSigned }: Props) {
             <div className="text-[11px] text-dac-gray-400">Titolare: {STRUTTURA.titolare}</div>
           </div>
 
-          <div>
-            <div className="font-bold text-white mb-1">Informativa ex art. 13-14 GDPR</div>
-            <p>I dati personali e sanitari (art. 9 GDPR) sono trattati per diagnosi, cura, prestazione
-            sanitaria e adempimenti di legge. Base giuridica: art. 6 b-c-e e art. 9 h GDPR. Conservazione:
-            10 anni (cartella clinica). Diritti artt. 15-22 GDPR: accesso, rettifica, cancellazione,
-            limitazione, portabilità, opposizione e reclamo al Garante.</p>
+          <div className="space-y-2">
+            <div className="font-bold text-white">Informativa ex artt. 13-14 GDPR</div>
+            <p><b>Titolare:</b> {STRUTTURA.titolare}, {STRUTTURA.indirizzo}.</p>
+            <p><b>Finalità:</b> prevenzione, diagnosi, cura, riabilitazione, medicina del lavoro ex D.Lgs. 81/2008,
+            adempimenti amministrativi, fiscali e di legge.</p>
+            <p><b>Base giuridica:</b> art. 9 par. 2 lett. h GDPR e D.Lgs. 196/2003 come modificato dal
+            D.Lgs. 101/2018; art. 6 par. 1 lett. b-c-e GDPR per finalità connesse.</p>
+            <p><b>Destinatari:</b> professionisti sanitari e specialisti collaboratori, laboratori di analisi,
+            enti assicurativi/previdenziali (INAIL, INPS, ASP), responsabili ex art. 28 GDPR. Nessun trasferimento extra-UE.</p>
+            <p><b>Conservazione:</b> 10 anni per cartella clinica (Circ. Min. Sanità 61/1986); 20 anni per medicina
+            del lavoro (art. 41 D.Lgs. 81/2008); 10 anni documentazione fiscale (art. 2220 c.c.).</p>
+            <p><b>Diritti (artt. 15-22 GDPR):</b> accesso, rettifica, cancellazione (nei limiti di legge),
+            limitazione, portabilità, opposizione, revoca del consenso. Reclamo al Garante (www.garanteprivacy.it).</p>
+            <p><b>Conferimento:</b> obbligatorio per le finalità di cura; facoltativo per marketing e recall.</p>
+            <p>Non sono in uso processi decisionali automatizzati ex art. 22 GDPR.</p>
           </div>
 
-          <div className="space-y-2">
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input type="checkbox" checked={consSanitari} onChange={e => setConsSanitari(e.target.checked)} className="mt-0.5" />
-              <span><b>Obbligatorio.</b> Acconsento al trattamento dei dati sanitari per diagnosi, cura e prestazione.</span>
+          <div className="space-y-2 pt-2 border-t border-white/5">
+            <div className="font-bold text-white">Consensi</div>
+            <label className="flex items-start gap-2 opacity-80">
+              <input type="checkbox" checked readOnly disabled className="mt-0.5" />
+              <span><b>Obbligatorio.</b> Acconsento al trattamento dei dati sanitari per diagnosi, cura, prevenzione e medicina del lavoro.</span>
             </label>
-            <label className="flex items-start gap-2 cursor-pointer">
-              <input type="checkbox" checked={consTerzi} onChange={e => setConsTerzi(e.target.checked)} className="mt-0.5" />
-              <span>Acconsento alla comunicazione dei dati a laboratori, consulenti e specialisti collaboratori.</span>
+            <label className="flex items-start gap-2 opacity-80">
+              <input type="checkbox" checked readOnly disabled className="mt-0.5" />
+              <span><b>Obbligatorio.</b> Acconsento alla comunicazione dei dati a laboratori terzi e specialisti collaboratori.</span>
             </label>
             <label className="flex items-start gap-2 cursor-pointer">
               <input type="checkbox" checked={consMarketing} onChange={e => setConsMarketing(e.target.checked)} className="mt-0.5" />
-              <span>Acconsento al trattamento per finalità di marketing, recall e newsletter (facoltativo).</span>
+              <span><b>Facoltativo.</b> Acconsento al trattamento per marketing, recall e newsletter.</span>
             </label>
           </div>
 
