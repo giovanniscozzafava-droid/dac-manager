@@ -16,16 +16,12 @@ import { CostiPage } from './pages/CostiPage';
 import { ParafarmaciaPage } from './pages/ParafarmaciaPage';
 import { ContabilitaPage } from './pages/ContabilitaPage';
 import { ConfigPage } from './pages/ConfigPage';
+import * as AnamnesiModule from './pages/Anamnesi';
 
-let AnamnesiComp: React.ComponentType<any>;
-try {
-  AnamnesiComp = require('./pages/Anamnesi').Anamnesi || require('./pages/Anamnesi').default;
-} catch {
-  AnamnesiComp = () => <div className="p-8 text-white">Anamnesi</div>;
-}
+const AnamnesiComp = (AnamnesiModule as any).Anamnesi || (AnamnesiModule as any).default || (() => <div className="p-8 text-white">Anamnesi</div>);
 
 export default function App() {
-  const { loading, operatore, authError, isAdmin, login, logout } = useAuth();
+  const { loading, operatore, authError, isAdmin, login, register, logout } = useAuth();
 
   if (loading) {
     return (
@@ -40,7 +36,7 @@ export default function App() {
   }
 
   if (!operatore) {
-    return <LoginSplash onLogin={login} error={authError} />;
+    return <LoginSplash onLogin={login} onRegister={register} error={authError} />;
   }
 
   const o = operatore;
