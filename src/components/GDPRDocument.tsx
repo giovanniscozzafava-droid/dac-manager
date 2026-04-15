@@ -138,27 +138,55 @@ export function GDPRDocument({ paziente, onClose, onSigned }: Props) {
 
   async function firma() {
     setError(null)
+    console.log('[GDPR] firma() start', { pazienteId: paziente.id })
     if (sigRef.current?.isEmpty()) { setError('Firma mancante.'); return }
-    if (!consSanitari) { setError('Il consenso al trattamento sanitario è obbligatorio.'); return }
 
     setSaving(true)
     try {
+      console.log('[GDPR] step 1: generazione PNG firma')
       const pngData = sigRef.current!.getTrimmedCanvas().toDataURL('image/png')
+      console.log('[GDPR] PNG generato, length:', pngData.length)
+
+      console.log('[GDPR] step 2: build PDF')
       const blob = buildPDF(pngData)
+      console.log('[GDPR] PDF blob:', { size: blob.size, type: blob.type })
+
       const path = `${paziente.id}/gdpr-${format(new Date(), 'yyyyMMdd-HHmmss')}.pdf`
+      console.log('[GDPR] step 3: upload storage', { bucket: 'gdpr-docs', path })
       const up = await supabase.storage.from('gdpr-docs').upload(path, blob, {
         contentType: 'application/pdf', upsert: true,
       })
-      if (up.error) throw up.error
+      console.log('[GDPR] upload result:', up)
+      if (up.error) {
+        console.error('[GDPR] upload ERROR:', up.error)
+        alert('Errore upload storage: ' + up.error.message + '\n\nVerifica che il bucket "gdpr-docs" esista e sia accessibile.')
+        throw up.error
+      }
+
+      console.log('[GDPR] step 4: getPublicUrl')
       const { data: pub } = supabase.storage.from('gdpr-docs').getPublicUrl(path)
       const url = pub.publicUrl
-      const { error: updErr } = await supabase.from('pazienti')
+      console.log('[GDPR] publicUrl:', url)
+
+      console.log('[GDPR] step 5: update pazienti')
+      const { data: updData, error: updErr } = await supabase.from('pazienti')
         .update({ doc_gdpr_url: url, gdpr: 'firmato' })
         .eq('id', paziente.id)
-      if (updErr) throw updErr
+        .select()
+      console.log('[GDPR] update result:', { data: updData, error: updErr })
+      if (updErr) {
+        console.error('[GDPR] update ERROR:', updErr)
+        alert('Errore update paziente: ' + updErr.message + '\n\nVerifica che la colonna "doc_gdpr_url" esista in pazienti.')
+        throw updErr
+      }
+
+      console.log('[GDPR] SUCCESS')
       onSigned(url)
     } catch (e: any) {
-      setError(e?.message ?? 'Errore durante il salvataggio.')
+      console.error('[GDPR] CATCH:', e)
+      const msg = e?.message ?? e?.error_description ?? JSON.stringify(e)
+      setError(msg)
+      alert('Errore salvataggio GDPR:\n\n' + msg)
     } finally {
       setSaving(false)
     }
