@@ -5,7 +5,7 @@ import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { Stethoscope, Plus, X, Check, Edit3, Trash2, Calendar, DollarSign } from 'lucide-react'
 
-interface Specialista { id: string; nome: string; specializzazione: string; email: string | null; telefono: string | null; percentuale_struttura: number; note: string | null; attivo: boolean }
+interface Specialista { id: string; nome: string; specializzazione: string; email: string | null; email_referti: string | null; telefono: string | null; percentuale_struttura: number; note: string | null; attivo: boolean }
 interface Disponibilita { id: string; specialista_id: string; data: string; ora_inizio: string; ora_fine: string; slot_totali: number; slot_prenotati: number; note: string | null }
 interface RegistroVisita { id: string; specialista_id: string; data: string; servizio_nome: string; n_visite: number; fatturato_lordo: number; percentuale_struttura: number; importo_struttura: number; incassato: number; saldo: number; note: string | null }
 
@@ -178,6 +178,7 @@ function SpecialistaForm({ item, onClose, onSaved }: { item: Specialista | null;
   const [nome, setNome] = useState(item?.nome ?? '')
   const [spec, setSpec] = useState(item?.specializzazione ?? '')
   const [email, setEmail] = useState(item?.email ?? '')
+  const [emailReferti, setEmailReferti] = useState(item?.email_referti ?? '')
   const [tel, setTel] = useState(item?.telefono ?? '')
   const [perc, setPerc] = useState(item ? item.percentuale_struttura * 100 : 20)
   const [saving, setSaving] = useState(false)
@@ -185,7 +186,7 @@ function SpecialistaForm({ item, onClose, onSaved }: { item: Specialista | null;
   async function salva() {
     if (!nome.trim() || !spec.trim()) return
     setSaving(true)
-    const payload = { nome: nome.trim(), specializzazione: spec.trim(), email: email || null, telefono: tel || null, percentuale_struttura: perc / 100 }
+    const payload = { nome: nome.trim(), specializzazione: spec.trim(), email: email || null, email_referti: emailReferti || null, telefono: tel || null, percentuale_struttura: perc / 100 }
     if (item) await supabase.from('specialisti').update(payload).eq('id', item.id)
     else await supabase.from('specialisti').insert({ ...payload, attivo: true })
     setSaving(false); onSaved()
@@ -195,9 +196,10 @@ function SpecialistaForm({ item, onClose, onSaved }: { item: Specialista | null;
     <Field label="Nome *"><input type="text" value={nome} onChange={e => setNome(e.target.value)} className="input-field" placeholder="Dott. Cognome" autoFocus /></Field>
     <Field label="Specializzazione *"><input type="text" value={spec} onChange={e => setSpec(e.target.value)} className="input-field" placeholder="Endocrinologo, Dermatologo..." /></Field>
     <div className="grid grid-cols-2 gap-3">
-      <Field label="Email"><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input-field" /></Field>
+      <Field label="Email contatto"><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input-field" /></Field>
       <Field label="Telefono"><input type="tel" value={tel} onChange={e => setTel(e.target.value)} className="input-field" /></Field>
     </div>
+    <Field label="📧 Email per invio referti (anamnesi)"><input type="email" value={emailReferti} onChange={e => setEmailReferti(e.target.value)} className="input-field" placeholder="specialista@dominio.it" /></Field>
     <Field label="% Struttura"><input type="number" value={perc} onChange={e => setPerc(Number(e.target.value))} className="input-field" min={0} max={100} /></Field>
     <Btns onClose={onClose} onSave={salva} saving={saving} disabled={!nome.trim() || !spec.trim()} />
   </Modal>
