@@ -87,11 +87,11 @@ export function AnamnesiPage({ operatore }: Props) {
             {filtered.map(a => (
               <div key={a.id} onClick={() => setSelected(a)}
                 className="flex items-center gap-4 px-4 lg:px-6 py-3 hover:bg-white/[0.03] cursor-pointer transition-colors">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0" style={{ background: 'rgba(46,134,193,0.1)' }}>&#x1F4CB;</div>
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center text-lg flex-shrink-0" style={{ background: 'rgba(46,134,193,0.1)' }}>📋</div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-white">{a.paziente_nome}</div>
                   <div className="text-[10px] text-dac-gray-400">
-                    {a.specialista ?? '\u2014'} &bull; {format(new Date(a.created_at), 'dd/MM/yyyy HH:mm')} &bull; {a.motivo_visita ? a.motivo_visita.substring(0, 40) : '\u2014'}
+                    {a.specialista ?? '—'} • {format(new Date(a.created_at), 'dd/MM/yyyy HH:mm')} • {a.motivo_visita ? a.motivo_visita.substring(0, 40) : '—'}
                   </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -317,7 +317,7 @@ function AnamnesiDetail({ item: a, onClose, onDeleted, onReload }: { item: Anamn
             <button onClick={onClose} className="p-1 rounded-md hover:bg-white/10 text-dac-gray-400"><X size={16} /></button>
           </div>
           <h3 className="font-display font-bold text-white text-lg">{a.paziente_nome}</h3>
-          <div className="text-xs text-dac-gray-400 mt-0.5">{a.specialista} &bull; {format(new Date(a.created_at), 'dd/MM/yyyy HH:mm')}</div>
+          <div className="text-xs text-dac-gray-400 mt-0.5">{a.specialista} • {format(new Date(a.created_at), 'dd/MM/yyyy HH:mm')}</div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
