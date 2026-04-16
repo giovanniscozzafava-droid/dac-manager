@@ -40,10 +40,19 @@ interface PazienteData {
 }
 
 // Helper per creare celle tabella
+const CELL_BORDERS = {
+  top: { style: BorderStyle.SINGLE, size: 4, color: '808080' },
+  bottom: { style: BorderStyle.SINGLE, size: 4, color: '808080' },
+  left: { style: BorderStyle.SINGLE, size: 4, color: '808080' },
+  right: { style: BorderStyle.SINGLE, size: 4, color: '808080' },
+}
+
 function cell(text: string, opts: { bold?: boolean; width?: number; shading?: string; align?: any } = {}) {
   return new TableCell({
     width: opts.width ? { size: opts.width, type: WidthType.PERCENTAGE } : undefined,
     shading: opts.shading ? { fill: opts.shading } : undefined,
+    borders: CELL_BORDERS,
+    margins: { top: 100, bottom: 100, left: 120, right: 120 },
     children: [new Paragraph({
       alignment: opts.align,
       children: [new TextRun({ text: text || '', bold: opts.bold, size: 20 })]
@@ -55,6 +64,8 @@ function emptyCell(width?: number, shading?: string) {
   return new TableCell({
     width: width ? { size: width, type: WidthType.PERCENTAGE } : undefined,
     shading: shading ? { fill: shading } : undefined,
+    borders: CELL_BORDERS,
+    margins: { top: 100, bottom: 100, left: 120, right: 120 },
     children: [new Paragraph({ children: [new TextRun({ text: '', size: 20 })] })]
   })
 }
