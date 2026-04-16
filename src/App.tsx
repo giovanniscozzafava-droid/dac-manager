@@ -19,7 +19,7 @@ import { ConfigPage } from './pages/ConfigPage';
 
 let AnamnesiComp: React.ComponentType<any>;
 try {
-  AnamnesiComp = require('./pages/Anamnesi').Anamnesi || require('./pages/Anamnesi').default;
+  AnamnesiComp = require('./pages/Anamnesi').AnamnesiPage || require('./pages/Anamnesi').default;
 } catch {
   AnamnesiComp = () => <div className="p-8 text-white">Anamnesi</div>;
 }
