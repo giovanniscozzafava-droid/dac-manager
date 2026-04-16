@@ -140,8 +140,16 @@ function CassaForm({ data, operatore, onClose, onSaved }: { data: string; operat
 
   async function salva() {
     if (!importo) return; setSaving(true)
-    await supabase.from('parafarmacia_cassa').insert({ data, tipo, importo, metodo, operatore_nome: operatore.nome, note: note || null })
-    setSaving(false); onSaved()
+    const payload = { data, tipo, importo, metodo, operatore_nome: operatore.nome, note: note || null }
+    console.log('[CassaForm] insert payload:', payload)
+    const { data: inserted, error } = await supabase.from('parafarmacia_cassa').insert(payload).select()
+    console.log('[CassaForm] result:', { inserted, error })
+    setSaving(false)
+    if (error) {
+      alert(`Errore salvataggio cassa:\n${error.message}\n${error.details ?? ''}\n${error.hint ?? ''}`)
+      return
+    }
+    onSaved()
   }
 
   return (

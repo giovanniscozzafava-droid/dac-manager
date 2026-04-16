@@ -423,6 +423,18 @@ function Skeleton({ n }: { n: number }) {
 // ═══════════════════════════════════════════════════════════
 // TAB FORNITORI
 // ═══════════════════════════════════════════════════════════
+const CATEGORIE_FORNITORI = [
+  'Reagenti e diagnostica',
+  'Dispositivi medici',
+  'Cosmetici e dermatologici',
+  'Farmaci e parafarmaci',
+  'Materiale di consumo',
+  'Attrezzature e macchinari',
+  'Servizi e manutenzione',
+  'Cancelleria e ufficio',
+  'Pulizia e sanificazione',
+  'Altro',
+]
 function FornitoriTab() {
   const [items, setItems] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -508,7 +520,10 @@ function FornitoreForm({ item, onClose, onSaved }: { item: any; onClose: () => v
     <FL label="Nome *"><input type="text" value={nome} onChange={e => setNome(e.target.value)} className="input-field" autoFocus /></FL>
     <div className="grid grid-cols-2 gap-3">
       <FL label="P.IVA"><input type="text" value={partitaIva} onChange={e => setPartitaIva(e.target.value)} className="input-field" /></FL>
-      <FL label="Categoria"><input type="text" value={categoria} onChange={e => setCategoria(e.target.value)} className="input-field" placeholder="Es. Farmaceutico, Laboratorio..." /></FL>
+      <FL label="Categoria"><select value={categoria} onChange={e => setCategoria(e.target.value)} className="input-field">
+        <option value="">— Seleziona —</option>
+        {CATEGORIE_FORNITORI.map(c => <option key={c} value={c}>{c}</option>)}
+      </select></FL>
     </div>
     <div className="grid grid-cols-2 gap-3">
       <FL label="Telefono"><input type="text" value={telefono} onChange={e => setTelefono(e.target.value)} className="input-field" /></FL>
