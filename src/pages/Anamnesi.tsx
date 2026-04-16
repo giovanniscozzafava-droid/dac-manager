@@ -19,7 +19,7 @@ interface Anamnesi {
 
 interface Props { operatore: Operatore }
 
-const SPECIALISTI_TIPI = ['Endocrinologo', 'Dermatologo', 'Nutrizionista', 'Cardiologo', 'Medicina del Lavoro']
+// Specialisti caricati dal DB
 
 export function AnamnesiPage({ operatore }: Props) {
   const [items, setItems] = useState<Anamnesi[]>([])
@@ -28,6 +28,13 @@ export function AnamnesiPage({ operatore }: Props) {
   const [filterSpec, setFilterSpec] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [selected, setSelected] = useState<Anamnesi | null>(null)
+  const [specialistiDB, setSpecialistiDB] = useState<string[]>([])
+
+  useEffect(() => {
+    supabase.from('specialisti').select('specializzazione').eq('attivo', true).order('specializzazione').then(({ data }) => {
+      if (data) setSpecialistiDB([...new Set(data.map(s => s.specializzazione))])
+    })
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -69,7 +76,7 @@ export function AnamnesiPage({ operatore }: Props) {
           <select value={filterSpec} onChange={e => setFilterSpec(e.target.value)}
             className="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-xs text-white focus:outline-none [&>option]:bg-dac-deep">
             <option value="">Tutti gli specialisti</option>
-            {SPECIALISTI_TIPI.map(s => <option key={s} value={s}>{s}</option>)}
+            {specialistiDB.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
       </div>
@@ -106,7 +113,7 @@ export function AnamnesiPage({ operatore }: Props) {
         )}
       </div>
 
-      {showForm && <AnamnesiForm operatore={operatore} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); load() }} />}
+      {showForm && <AnamnesiForm operatore={operatore} specialistiLista={specialistiDB} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); load() }} />}
       {selected && <AnamnesiDetail item={selected} onClose={() => setSelected(null)} onDeleted={() => { setSelected(null); load() }} />}
     </div>
   )
@@ -115,7 +122,7 @@ export function AnamnesiPage({ operatore }: Props) {
 // ═══════════════════════════════════════════════════════════
 // FORM ANAMNESI COMPLETO
 // ═══════════════════════════════════════════════════════════
-function AnamnesiForm({ operatore, onClose, onSaved }: { operatore: Operatore; onClose: () => void; onSaved: () => void }) {
+function AnamnesiForm({ operatore, specialistiLista, onClose, onSaved }: { operatore: Operatore; specialistiLista: string[]; onClose: () => void; onSaved: () => void }) {
   const [tab, setTab] = useState<'paz' | 'vitali' | 'clinica' | 'lavoro'>('paz')
   const [saving, setSaving] = useState(false)
   // Paziente
@@ -233,7 +240,7 @@ function AnamnesiForm({ operatore, onClose, onSaved }: { operatore: Operatore; o
             </div>
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Specialista *</label>
               <select value={specialista} onChange={e => setSpecialista(e.target.value)} className="input-field">
-                <option value="">Seleziona...</option>{SPECIALISTI_TIPI.map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="">Seleziona...</option>{specialistiLista.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Motivo visita</label>
