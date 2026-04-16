@@ -515,13 +515,14 @@ function PazienteForm({ paziente, onClose, onSaved }: {
       await supabase.from('pazienti').update(payload).eq('id', paziente!.id)
     } else {
       const codice = 'PAZ-' + format(new Date(), 'yyMMddHHmmss')
-      await supabase.from('pazienti').insert({
+      const { error: insErr } = await supabase.from('pazienti').insert({
         ...payload,
         codice,
         gdpr: 'mancante',
         noshow_count: 0,
         data_prima_visita: format(new Date(), 'yyyy-MM-dd'),
       })
+      if (insErr) { alert('Errore salvataggio paziente: ' + insErr.message); setSaving(false); return }
     }
 
     setSaving(false)
