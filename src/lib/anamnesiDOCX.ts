@@ -1,4 +1,7 @@
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle, HeightRule } from 'docx'
+import {
+  Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
+  WidthType, AlignmentType, BorderStyle, ShadingType, HeightRule
+} from 'docx'
 import { format } from 'date-fns'
 
 interface AnamnesiData {
@@ -39,38 +42,70 @@ interface PazienteData {
   email: string | null
 }
 
-// Helper per creare celle tabella
-const CELL_BORDERS = {
-  top: { style: BorderStyle.SINGLE, size: 4, color: '808080' },
-  bottom: { style: BorderStyle.SINGLE, size: 4, color: '808080' },
-  left: { style: BorderStyle.SINGLE, size: 4, color: '808080' },
-  right: { style: BorderStyle.SINGLE, size: 4, color: '808080' },
-}
+const BRAND_BLUE = '1F4E79'
+const LIGHT_BLUE_BG = 'D5E8F5'
+const LIGHT_GREY_BG = 'F2F2F2'
+const RED_ALERT = 'C00000'
+const PAGE_CW = 9356
 
-function cell(text: string, opts: { bold?: boolean; width?: number; shading?: string; align?: any } = {}) {
+const border = { style: BorderStyle.SINGLE, size: 6, color: 'A8A8A8' }
+const bordersAll = { top: border, bottom: border, left: border, right: border }
+const noBorder = { style: BorderStyle.NONE, size: 0, color: 'FFFFFF' }
+const noBorders = { top: noBorder, bottom: noBorder, left: noBorder, right: noBorder }
+const cellMargin = { top: 120, bottom: 120, left: 160, right: 160 }
+
+function tc(text: string, opts: any = {}) {
   return new TableCell({
-    width: opts.width ? { size: opts.width, type: WidthType.PERCENTAGE } : undefined,
-    shading: opts.shading ? { fill: opts.shading } : undefined,
-    borders: CELL_BORDERS,
-    margins: { top: 100, bottom: 100, left: 120, right: 120 },
+    borders: bordersAll,
+    margins: cellMargin,
+    width: opts.width ? { size: opts.width, type: WidthType.DXA } : undefined,
+    shading: opts.shading ? { fill: opts.shading, type: ShadingType.CLEAR } : undefined,
+    verticalAlign: 'center' as any,
     children: [new Paragraph({
-      alignment: opts.align,
-      children: [new TextRun({ text: text || '', bold: opts.bold, size: 20 })]
+      alignment: opts.align || AlignmentType.LEFT,
+      spacing: { before: 0, after: 0 },
+      children: [new TextRun({
+        text: text || '',
+        bold: opts.bold,
+        size: opts.size || 20,
+        color: opts.color,
+        font: 'Arial'
+      })]
     })]
   })
 }
 
-function emptyCell(width?: number, shading?: string) {
+function ec(width?: number, shading?: string) {
   return new TableCell({
-    width: width ? { size: width, type: WidthType.PERCENTAGE } : undefined,
-    shading: shading ? { fill: shading } : undefined,
-    borders: CELL_BORDERS,
-    margins: { top: 100, bottom: 100, left: 120, right: 120 },
-    children: [new Paragraph({ children: [new TextRun({ text: '', size: 20 })] })]
+    borders: bordersAll,
+    margins: cellMargin,
+    width: width ? { size: width, type: WidthType.DXA } : undefined,
+    shading: shading ? { fill: shading, type: ShadingType.CLEAR } : undefined,
+    children: [new Paragraph({ children: [new TextRun({ text: '', size: 20, font: 'Arial' })] })]
   })
 }
 
-function calcolaRischio(a: AnamnesiData): { livello: string; colore: string; motivo: string } {
+function sectionTitle(text: string) {
+  return new Paragraph({
+    spacing: { before: 280, after: 120 },
+    border: { bottom: { style: BorderStyle.SINGLE, size: 12, color: BRAND_BLUE, space: 4 } },
+    children: [new TextRun({ text, bold: true, size: 24, color: BRAND_BLUE, font: 'Arial' })]
+  })
+}
+
+function boxCompilabile(titolo: string, righe: number) {
+  const rows = [new TableRow({ children: [tc(titolo, { bold: true, shading: BRAND_BLUE, color: 'FFFFFF', size: 18 })] })]
+  for (let i = 0; i < righe; i++) {
+    rows.push(new TableRow({ height: { value: 400, rule: HeightRule.EXACT }, children: [ec(PAGE_CW)] }))
+  }
+  return new Table({
+    width: { size: PAGE_CW, type: WidthType.DXA },
+    columnWidths: [PAGE_CW],
+    rows
+  })
+}
+
+function calcolaRischio(a: AnamnesiData): { livello: string; emoji: string; motivo: string; recall: number } {
   const fattori: string[] = []
   if (a.patologie) {
     const p = a.patologie.toLowerCase()
@@ -84,234 +119,335 @@ function calcolaRischio(a: AnamnesiData): { livello: string; colore: string; mot
   if (a.gravidanza === 'Si') fattori.push('Gravidanza')
   if (a.prob_circolatori === 'Si') fattori.push('Prob. circolatori')
 
-  if (fattori.length >= 3) return { livello: 'MOLTO ALTO', colore: 'C00000', motivo: fattori.join(', ') }
-  if (fattori.length >= 2) return { livello: 'ALTO', colore: 'ED7D31', motivo: fattori.join(', ') }
-  if (fattori.length === 1) return { livello: 'MEDIO', colore: 'FFC000', motivo: fattori[0] }
-  return { livello: 'BASSO', colore: '70AD47', motivo: 'Nessun fattore significativo' }
+  if (fattori.length >= 3) return { livello: 'MOLTO ALTO', emoji: '🔴', motivo: fattori.join(', '), recall: 30 }
+  if (fattori.length >= 2) return { livello: 'ALTO', emoji: '🟠', motivo: fattori.join(', '), recall: 60 }
+  if (fattori.length === 1) return { livello: 'MEDIO', emoji: '🟡', motivo: fattori[0], recall: 90 }
+  return { livello: 'BASSO', emoji: '🟢', motivo: 'Nessun fattore significativo', recall: 180 }
 }
 
-function recallConsigliato(rischio: string): number {
-  if (rischio === 'MOLTO ALTO') return 30
-  if (rischio === 'ALTO') return 60
-  if (rischio === 'MEDIO') return 90
-  return 180
+function calcEta(dataNascita: string | null): string {
+  if (!dataNascita) return '-'
+  const n = new Date(dataNascita)
+  const oggi = new Date()
+  let eta = oggi.getFullYear() - n.getFullYear()
+  const m = oggi.getMonth() - n.getMonth()
+  if (m < 0 || (m === 0 && oggi.getDate() < n.getDate())) eta--
+  return `${eta} anni`
+}
+
+function calcBMI(peso: number | null, altezza: number | null): string {
+  if (!peso || !altezza) return '-'
+  const bmi = peso / Math.pow(altezza / 100, 2)
+  let stato = ''
+  if (bmi < 18.5) stato = '(sottopeso)'
+  else if (bmi < 25) stato = '(normopeso)'
+  else if (bmi < 30) stato = '(sovrappeso)'
+  else stato = '(obeso)'
+  return `${bmi.toFixed(1)} ${stato}`
 }
 
 export async function generaAnamnesiDOCX(a: AnamnesiData, p: PazienteData | null): Promise<{ blob: Blob; base64: string; filename: string }> {
   const dataVisita = format(new Date(a.created_at), 'dd/MM/yyyy')
   const rischio = calcolaRischio(a)
-  const recall = recallConsigliato(rischio.livello)
 
-  // Intestazione struttura
+  // HEADER
   const header = [
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Palazzo della Salute', bold: true, size: 32, color: '1F4E79' })] }),
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'LABORATORI DAC S.R.L. SOCIETÀ BENEFIT — P.IVA / C.F. 01233930864', bold: true, size: 20 })] }),
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Via Stazione 20, 94010 Catenanuova (EN) — Tel. +39 0935 950025', bold: true, size: 20 })] }),
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'SCHEDA ANAMNESI PRE-VISITA', bold: true, size: 28 })] }),
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ children: [new TextRun({ text: `Data: ${dataVisita}  —  Specialista: ${a.specialista ?? '[da definire]'}`, bold: true, size: 22 })] }),
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 60 },
+      children: [new TextRun({ text: 'PALAZZO DELLA SALUTE', bold: true, size: 36, color: BRAND_BLUE, font: 'Arial' })]
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 40 },
+      children: [new TextRun({ text: 'LABORATORI DAC S.R.L. SOCIETÀ BENEFIT', bold: true, size: 20, color: '595959', font: 'Arial' })]
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 20 },
+      children: [new TextRun({ text: 'P.IVA / C.F. 01233930864  •  Via Stazione 20, 94010 Catenanuova (EN)  •  Tel. +39 0935 950025', size: 18, color: '595959', font: 'Arial' })]
+    }),
+    new Paragraph({
+      border: { bottom: { style: BorderStyle.SINGLE, size: 18, color: BRAND_BLUE, space: 8 } },
+      spacing: { after: 280 },
+      children: [new TextRun({ text: '', size: 2 })]
+    }),
+    new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 120 },
+      children: [new TextRun({ text: 'SCHEDA ANAMNESI PRE-VISITA', bold: true, size: 32, color: BRAND_BLUE, font: 'Arial' })]
+    }),
   ]
 
-  // Dati Paziente
-  const datiPaziente = new Paragraph({ children: [new TextRun({ text: 'DATI PAZIENTE', bold: true, size: 24, color: '1F4E79' })] })
-
-  const tabDati = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
+  const tabVisita = new Table({
+    width: { size: PAGE_CW, type: WidthType.DXA },
+    columnWidths: [3119, 3119, 3118],
     rows: [
-      new TableRow({ children: [cell('Paziente', { bold: true, width: 30, shading: 'E7F0F9' }), cell(a.paziente_nome, { bold: true, width: 70 })] }),
-      new TableRow({ children: [cell('Data nascita', { bold: true, shading: 'E7F0F9' }), cell(p?.data_nascita ? `${format(new Date(p.data_nascita), 'dd/MM/yyyy')}  —  Sesso: ${p?.sesso ?? '-'}` : '-', { bold: true })] }),
-      new TableRow({ children: [cell('Codice Fiscale', { bold: true, shading: 'E7F0F9' }), cell(p?.codice_fiscale ?? '-', { bold: true })] }),
-      new TableRow({ children: [cell('Telefono', { bold: true, shading: 'E7F0F9' }), cell(p?.telefono ?? '-', { bold: true })] }),
-      new TableRow({ children: [cell('Email', { bold: true, shading: 'E7F0F9' }), cell(p?.email ?? '', { bold: true })] }),
+      new TableRow({ children: [
+        tc('Data visita', { bold: true, width: 3119, shading: LIGHT_GREY_BG, size: 16 }),
+        tc('Specialista', { bold: true, width: 3119, shading: LIGHT_GREY_BG, size: 16 }),
+        tc('Codice scheda', { bold: true, width: 3118, shading: LIGHT_GREY_BG, size: 16 }),
+      ]}),
+      new TableRow({ children: [
+        tc(dataVisita, { bold: true, width: 3119, size: 22 }),
+        tc(a.specialista ?? '-', { bold: true, width: 3119, size: 22 }),
+        tc(a.codice, { bold: true, width: 3118, size: 18 }),
+      ]})
     ]
   })
 
-  // Motivo visita
-  const motivoSection = [
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ children: [new TextRun({ text: `MOTIVO VISITA: ${a.motivo_visita ?? '.'}`, bold: true, size: 22 })] }),
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-  ]
+  const tabDatiPaziente = new Table({
+    width: { size: PAGE_CW, type: WidthType.DXA },
+    columnWidths: [2800, 6556],
+    rows: [
+      new TableRow({ children: [tc('PAZIENTE', { bold: true, width: 2800, shading: LIGHT_BLUE_BG }), tc(a.paziente_nome, { bold: true, width: 6556, size: 24 })] }),
+      new TableRow({ children: [tc('DATA NASCITA', { bold: true, width: 2800, shading: LIGHT_BLUE_BG }), tc(p?.data_nascita ? `${format(new Date(p.data_nascita), 'dd/MM/yyyy')}  —  Sesso: ${p?.sesso ?? '-'}  —  Età: ${calcEta(p.data_nascita)}` : '-', { width: 6556 })] }),
+      new TableRow({ children: [tc('CODICE FISCALE', { bold: true, width: 2800, shading: LIGHT_BLUE_BG }), tc(p?.codice_fiscale ?? '-', { width: 6556 })] }),
+      new TableRow({ children: [tc('TELEFONO', { bold: true, width: 2800, shading: LIGHT_BLUE_BG }), tc(p?.telefono ?? '-', { width: 6556 })] }),
+      new TableRow({ children: [tc('EMAIL', { bold: true, width: 2800, shading: LIGHT_BLUE_BG }), tc(p?.email ?? '', { width: 6556 })] }),
+    ]
+  })
 
-  // Parametri vitali
-  const parametriTitle = new Paragraph({ children: [new TextRun({ text: 'PARAMETRI VITALI', bold: true, size: 24, color: '1F4E79' })] })
-  const paramRows: TableRow[] = []
-  if (a.peso) paramRows.push(new TableRow({ children: [cell('Peso', { bold: true, width: 30, shading: 'E7F0F9' }), cell(`${a.peso} kg`, { bold: true })] }))
-  if (a.altezza) paramRows.push(new TableRow({ children: [cell('Altezza', { bold: true, shading: 'E7F0F9' }), cell(`${a.altezza} cm`, { bold: true })] }))
-  if (a.pressione_arteriosa) paramRows.push(new TableRow({ children: [cell('Pressione arteriosa', { bold: true, shading: 'E7F0F9' }), cell(`${a.pressione_arteriosa} mmHg`, { bold: true })] }))
-  if (a.frequenza_cardiaca) paramRows.push(new TableRow({ children: [cell('Frequenza cardiaca', { bold: true, shading: 'E7F0F9' }), cell(`${a.frequenza_cardiaca} bpm`, { bold: true })] }))
-  if (a.glicemia) paramRows.push(new TableRow({ children: [cell('Glicemia', { bold: true, shading: 'E7F0F9' }), cell(`${a.glicemia} mg/dL`, { bold: true })] }))
-  if (paramRows.length === 0) paramRows.push(new TableRow({ children: [cell('—', { width: 30, shading: 'E7F0F9' }), cell('—')] }))
-  const tabParametri = new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: paramRows })
+  const tabMotivo = new Table({
+    width: { size: PAGE_CW, type: WidthType.DXA },
+    columnWidths: [PAGE_CW],
+    rows: [
+      new TableRow({ children: [tc('MOTIVO DELLA VISITA', { bold: true, shading: BRAND_BLUE, color: 'FFFFFF', size: 18 })] }),
+      new TableRow({ height: { value: 600, rule: HeightRule.ATLEAST }, children: [tc(a.motivo_visita || '-', { italic: true, size: 22 })] })
+    ]
+  })
 
-  // Anamnesi patologica
-  const anamnesiTitle = new Paragraph({ children: [new TextRun({ text: 'ANAMNESI PATOLOGICA', bold: true, size: 24, color: '1F4E79' })] })
+  // PARAMETRI VITALI
+  const tabParametri = new Table({
+    width: { size: PAGE_CW, type: WidthType.DXA },
+    columnWidths: [1872, 1872, 1872, 1870, 1870],
+    rows: [
+      new TableRow({ children: [
+        tc('PESO', { bold: true, shading: LIGHT_GREY_BG, align: AlignmentType.CENTER, size: 16, width: 1872 }),
+        tc('ALTEZZA', { bold: true, shading: LIGHT_GREY_BG, align: AlignmentType.CENTER, size: 16, width: 1872 }),
+        tc('P.A.', { bold: true, shading: LIGHT_GREY_BG, align: AlignmentType.CENTER, size: 16, width: 1872 }),
+        tc('F.C.', { bold: true, shading: LIGHT_GREY_BG, align: AlignmentType.CENTER, size: 16, width: 1870 }),
+        tc('GLICEMIA', { bold: true, shading: LIGHT_GREY_BG, align: AlignmentType.CENTER, size: 16, width: 1870 }),
+      ]}),
+      new TableRow({ children: [
+        tc(a.peso ? `${a.peso} kg` : '-', { bold: true, align: AlignmentType.CENTER, size: 26, width: 1872 }),
+        tc(a.altezza ? `${a.altezza} cm` : '-', { bold: true, align: AlignmentType.CENTER, size: 26, width: 1872 }),
+        tc(a.pressione_arteriosa || '-', { bold: true, align: AlignmentType.CENTER, size: 26, width: 1872 }),
+        tc(a.frequenza_cardiaca ? `${a.frequenza_cardiaca} bpm` : '-', { bold: true, align: AlignmentType.CENTER, size: 26, width: 1870 }),
+        tc(a.glicemia ? `${a.glicemia} mg/dL` : '-', { bold: true, align: AlignmentType.CENTER, size: 26, width: 1870 }),
+      ]})
+    ]
+  })
+
+  // ANAMNESI CLINICA
   const tabAnamnesi = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
+    width: { size: PAGE_CW, type: WidthType.DXA },
+    columnWidths: [2800, 6556],
     rows: [
-      new TableRow({ children: [cell('Patologie', { bold: true, width: 30, shading: 'E7F0F9' }), cell(a.patologie || 'Nessuna riferita', { bold: true })] }),
-      new TableRow({ children: [cell('Interventi pregressi', { bold: true, shading: 'E7F0F9' }), cell(a.interventi_pregressi || 'Nessuno', { bold: true })] }),
+      new TableRow({ children: [tc('PATOLOGIE', { bold: true, width: 2800, shading: LIGHT_BLUE_BG }), tc(a.patologie || 'Nessuna riferita', { width: 6556 })] }),
+      new TableRow({ children: [tc('INTERVENTI PREGRESSI', { bold: true, width: 2800, shading: LIGHT_BLUE_BG }), tc(a.interventi_pregressi || 'Nessuno', { width: 6556 })] }),
+      new TableRow({ children: [tc('ALLERGIE', { bold: true, width: 2800, shading: 'FDE7E9', color: RED_ALERT }), tc(a.allergie ? `⚠ ${a.allergie}` : 'Nessuna riferita', { bold: !!a.allergie, color: a.allergie ? RED_ALERT : undefined, width: 6556 })] }),
+      new TableRow({ children: [tc('FARMACI IN USO', { bold: true, width: 2800, shading: LIGHT_BLUE_BG }), tc(a.farmaci || 'Nessuno', { width: 6556 })] }),
     ]
   })
 
-  // Allergie
-  const allergieSection = [
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ children: [new TextRun({ text: `⚠ ALLERGIE: ${a.allergie || 'Nessuna riferita'}`, bold: true, size: 22, color: a.allergie ? 'C00000' : '000000' })] }),
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-  ]
-
-  // Farmaci
-  const farmaciTitle = new Paragraph({ children: [new TextRun({ text: 'FARMACI IN USO', bold: true, size: 24, color: '1F4E79' })] })
-  const farmaciContent = new Paragraph({ children: [new TextRun({ text: a.farmaci || 'Nessun farmaco riferito', size: 22 })] })
-
-  // Condizioni specifiche
-  const condizioniTitle = new Paragraph({ children: [new TextRun({ text: 'CONDIZIONI SPECIFICHE', bold: true, size: 24, color: '1F4E79' })] })
+  // CONDIZIONI SPECIFICHE
   const tabCondizioni = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
+    width: { size: PAGE_CW, type: WidthType.DXA },
+    columnWidths: [2339, 2339, 2339, 2339],
     rows: [
       new TableRow({ children: [
-        cell('Gravidanza', { bold: true, width: 25, shading: 'E7F0F9' }),
-        cell(a.gravidanza ?? 'No', { bold: true, width: 25 }),
-        cell('Pacemaker', { bold: true, width: 25, shading: 'E7F0F9' }),
-        cell(a.pacemaker ?? 'No', { bold: true, width: 25 }),
+        tc('Gravidanza', { bold: true, shading: LIGHT_GREY_BG, size: 16, width: 2339 }),
+        tc(a.gravidanza ?? 'No', { width: 2339 }),
+        tc('Pacemaker', { bold: true, shading: LIGHT_GREY_BG, size: 16, width: 2339 }),
+        tc(a.pacemaker ?? 'No', { width: 2339 }),
       ]}),
       new TableRow({ children: [
-        cell('Prob. circolatori', { bold: true, shading: 'E7F0F9' }),
-        cell(a.prob_circolatori ?? 'No', { bold: true }),
-        cell('Fototipo', { bold: true, shading: 'E7F0F9' }),
-        cell(a.fototipo || 'N/A', { bold: true }),
+        tc('Prob. circolatori', { bold: true, shading: LIGHT_GREY_BG, size: 16, width: 2339 }),
+        tc(a.prob_circolatori ?? 'No', { width: 2339 }),
+        tc('Fototipo', { bold: true, shading: LIGHT_GREY_BG, size: 16, width: 2339 }),
+        tc(a.fototipo || 'N/A', { width: 2339 }),
       ]}),
       new TableRow({ children: [
-        cell('Fumo', { bold: true, shading: 'E7F0F9' }),
-        cell(a.fumo ?? '-', { bold: true }),
-        cell('Alcol', { bold: true, shading: 'E7F0F9' }),
-        cell(a.alcol ?? '-', { bold: true }),
+        tc('Fumo', { bold: true, shading: LIGHT_GREY_BG, size: 16, width: 2339 }),
+        tc(a.fumo ?? '-', { width: 2339 }),
+        tc('Alcol', { bold: true, shading: LIGHT_GREY_BG, size: 16, width: 2339 }),
+        tc(a.alcol ?? '-', { width: 2339 }),
       ]}),
       new TableRow({ children: [
-        cell('Attività fisica', { bold: true, shading: 'E7F0F9' }),
-        cell(a.attivita_fisica ?? '-', { bold: true }),
-        emptyCell(25, 'E7F0F9'),
-        emptyCell(25),
+        tc('Attività fisica', { bold: true, shading: LIGHT_GREY_BG, size: 16, width: 2339 }),
+        tc(a.attivita_fisica ?? '-', { width: 2339 }),
+        tc('BMI calcolato', { bold: true, shading: LIGHT_GREY_BG, size: 16, width: 2339 }),
+        tc(calcBMI(a.peso, a.altezza), { width: 2339 }),
       ]}),
     ]
   })
 
-  // SEZIONE MEDICO — da compilare
-  const sezioneMedico = [
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ children: [new TextRun({ text: 'SEZIONE RISERVATA AL MEDICO', bold: true, size: 26, color: 'C00000' })] }),
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ children: [new TextRun({ text: 'ESAME OBIETTIVO', bold: true, size: 24, color: '1F4E79' })] }),
-    new Paragraph({ children: [new TextRun({ text: '_'.repeat(120), size: 22 })] }),
-    new Paragraph({ children: [new TextRun({ text: '_'.repeat(120), size: 22 })] }),
-    new Paragraph({ children: [new TextRun({ text: '_'.repeat(120), size: 22 })] }),
-    new Paragraph({ children: [new TextRun({ text: '_'.repeat(120), size: 22 })] }),
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ children: [new TextRun({ text: 'DIAGNOSI', bold: true, size: 24, color: '1F4E79' })] }),
-    new Paragraph({ children: [new TextRun({ text: '_'.repeat(120), size: 22 })] }),
-    new Paragraph({ children: [new TextRun({ text: '_'.repeat(120), size: 22 })] }),
-    new Paragraph({ children: [new TextRun({ text: '_'.repeat(120), size: 22 })] }),
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ children: [new TextRun({ text: 'TERAPIA PRESCRITTA', bold: true, size: 24, color: '1F4E79' })] }),
-  ]
+  const tabNote = new Table({
+    width: { size: PAGE_CW, type: WidthType.DXA },
+    columnWidths: [PAGE_CW],
+    rows: [
+      new TableRow({ children: [tc('NOTE INFERMIERA', { bold: true, shading: LIGHT_GREY_BG, size: 16 })] }),
+      new TableRow({ height: { value: 600, rule: HeightRule.ATLEAST }, children: [tc(a.note_infermiera || '-', { italic: true })] })
+    ]
+  })
 
-  // Tabella terapia vuota
+  // SEZIONE MEDICO
+  const medicoHeader = new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 400, after: 240 },
+    shading: { fill: RED_ALERT, type: ShadingType.CLEAR },
+    children: [new TextRun({ text: '  SEZIONE RISERVATA AL MEDICO  ', bold: true, size: 26, color: 'FFFFFF', font: 'Arial' })]
+  })
+
+  const tabEsame = boxCompilabile('ESAME OBIETTIVO', 5)
+  const tabDiagnosi = boxCompilabile('DIAGNOSI', 4)
+
   const tabTerapia = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
+    width: { size: PAGE_CW, type: WidthType.DXA },
+    columnWidths: [3744, 1870, 1870, 1872],
     rows: [
       new TableRow({ children: [
-        cell('Farmaco / Trattamento', { bold: true, shading: 'E7F0F9', width: 40 }),
-        cell('Dosaggio', { bold: true, shading: 'E7F0F9', width: 20 }),
-        cell('Frequenza', { bold: true, shading: 'E7F0F9', width: 20 }),
-        cell('Durata', { bold: true, shading: 'E7F0F9', width: 20 }),
+        tc('TERAPIA PRESCRITTA', { bold: true, shading: BRAND_BLUE, color: 'FFFFFF', size: 18 }),
+        ec(0), ec(0), ec(0)
       ]}),
-      new TableRow({ height: { value: 400, rule: HeightRule.ATLEAST }, children: [emptyCell(40), emptyCell(20), emptyCell(20), emptyCell(20)] }),
-      new TableRow({ height: { value: 400, rule: HeightRule.ATLEAST }, children: [emptyCell(40), emptyCell(20), emptyCell(20), emptyCell(20)] }),
-      new TableRow({ height: { value: 400, rule: HeightRule.ATLEAST }, children: [emptyCell(40), emptyCell(20), emptyCell(20), emptyCell(20)] }),
-      new TableRow({ height: { value: 400, rule: HeightRule.ATLEAST }, children: [emptyCell(40), emptyCell(20), emptyCell(20), emptyCell(20)] }),
+      new TableRow({ children: [
+        tc('Farmaco / Trattamento', { bold: true, shading: LIGHT_GREY_BG, size: 16, width: 3744 }),
+        tc('Dosaggio', { bold: true, shading: LIGHT_GREY_BG, size: 16, width: 1870, align: AlignmentType.CENTER }),
+        tc('Frequenza', { bold: true, shading: LIGHT_GREY_BG, size: 16, width: 1870, align: AlignmentType.CENTER }),
+        tc('Durata', { bold: true, shading: LIGHT_GREY_BG, size: 16, width: 1872, align: AlignmentType.CENTER }),
+      ]}),
+      ...Array(5).fill(null).map(() => new TableRow({
+        height: { value: 400, rule: HeightRule.ATLEAST },
+        children: [ec(3744), ec(1870), ec(1870), ec(1872)]
+      }))
     ]
   })
 
-  // Esami + controllo
-  const esamiControllo = [
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ children: [new TextRun({ text: 'ESAMI RICHIESTI', bold: true, size: 24, color: '1F4E79' })] }),
-    new Paragraph({ children: [new TextRun({ text: '_'.repeat(120), size: 22 })] }),
-    new Paragraph({ children: [new TextRun({ text: '_'.repeat(120), size: 22 })] }),
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ children: [new TextRun({ text: 'PROSSIMO CONTROLLO', bold: true, size: 24, color: '1F4E79' })] }),
-  ]
+  const tabEsami = boxCompilabile('ESAMI RICHIESTI', 3)
 
   const tabControllo = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
+    width: { size: PAGE_CW, type: WidthType.DXA },
+    columnWidths: [3118, 6238],
     rows: [
-      new TableRow({ children: [cell('Data consigliata', { bold: true, width: 30, shading: 'E7F0F9' }), cell('___  /  ___  /  ________', { bold: true })] }),
-      new TableRow({ children: [cell('Urgenza', { bold: true, shading: 'E7F0F9' }), cell('☐ Routine   ☐ Urgente   ☐ Follow-up stretto', { bold: true })] }),
-      new TableRow({ children: [cell('Note', { bold: true, shading: 'E7F0F9' }), emptyCell(70)] }),
+      new TableRow({ children: [tc('PROSSIMO CONTROLLO', { bold: true, shading: BRAND_BLUE, color: 'FFFFFF', size: 18 }), ec(0)] }),
+      new TableRow({ children: [
+        tc('Data consigliata', { bold: true, shading: LIGHT_GREY_BG, width: 3118 }),
+        tc('_____  /  _____  /  ___________', { width: 6238 })
+      ]}),
+      new TableRow({ children: [
+        tc('Urgenza', { bold: true, shading: LIGHT_GREY_BG, width: 3118 }),
+        tc('☐ Routine        ☐ Urgente        ☐ Follow-up stretto', { width: 6238 })
+      ]}),
+      new TableRow({ children: [
+        tc('Note', { bold: true, shading: LIGHT_GREY_BG, width: 3118 }),
+        ec(6238)
+      ]}),
     ]
   })
-
-  // Classificazione rischio
-  const rischioTitle = [
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ children: [new TextRun({ text: 'CLASSIFICAZIONE RISCHIO PAZIENTE', bold: true, size: 24, color: '1F4E79' })] }),
-  ]
 
   const tabRischio = new Table({
-    width: { size: 100, type: WidthType.PERCENTAGE },
+    width: { size: PAGE_CW, type: WidthType.DXA },
+    columnWidths: [3118, 6238],
     rows: [
-      new TableRow({ children: [cell('Rischio calcolato (auto)', { bold: true, width: 35, shading: 'E7F0F9' }), cell(`${rischio.livello} — ${rischio.motivo}`, { bold: true })] }),
-      new TableRow({ children: [cell('Rischio confermato dal medico', { bold: true, shading: 'E7F0F9' }), cell('☐ BASSO   ☐ MEDIO   ☐ ALTO   ☐ MOLTO ALTO', { bold: true })] }),
-      new TableRow({ children: [cell('Recall consigliato (gg)', { bold: true, shading: 'E7F0F9' }), cell(String(recall), { bold: true })] }),
-      new TableRow({ children: [cell('Note rischio', { bold: true, shading: 'E7F0F9' }), emptyCell(65)] }),
+      new TableRow({ children: [tc('CLASSIFICAZIONE RISCHIO PAZIENTE', { bold: true, shading: BRAND_BLUE, color: 'FFFFFF', size: 18 }), ec(0)] }),
+      new TableRow({ children: [
+        tc('Rischio calcolato (auto)', { bold: true, shading: LIGHT_GREY_BG, width: 3118 }),
+        tc(`${rischio.emoji} ${rischio.livello} — ${rischio.motivo}`, { bold: true, width: 6238 })
+      ]}),
+      new TableRow({ children: [
+        tc('Rischio confermato dal medico', { bold: true, shading: LIGHT_GREY_BG, width: 3118 }),
+        tc('☐ BASSO        ☐ MEDIO        ☐ ALTO        ☐ MOLTO ALTO', { width: 6238 })
+      ]}),
+      new TableRow({ children: [
+        tc('Recall consigliato (giorni)', { bold: true, shading: LIGHT_GREY_BG, width: 3118 }),
+        tc(`${rischio.recall} giorni`, { width: 6238 })
+      ]}),
+      new TableRow({ children: [
+        tc('Note rischio', { bold: true, shading: LIGHT_GREY_BG, width: 3118 }),
+        ec(6238)
+      ]}),
     ]
   })
 
-  // Firma
-  const firma = [
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ children: [new TextRun({ text: 'Firma Specialista: ________________________________          Data: ___  /  ___  /  ________', size: 22 })] }),
-    new Paragraph({ children: [new TextRun({ text: '' })] }),
-    new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Documento generato da DAC Manager — Palazzo della Salute — LABORATORI DAC S.R.L. SOCIETÀ BENEFIT', italics: true, size: 16, color: '808080' })] }),
-  ]
+  const tabFirma = new Table({
+    width: { size: PAGE_CW, type: WidthType.DXA },
+    columnWidths: [4678, 4678],
+    rows: [
+      new TableRow({ children: [
+        new TableCell({
+          borders: { top: border, bottom: noBorder, left: noBorder, right: noBorder },
+          width: { size: 4678, type: WidthType.DXA },
+          margins: { top: 80, bottom: 40, left: 0, right: 0 },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Firma Specialista', size: 18, color: '595959', font: 'Arial' })] })]
+        }),
+        new TableCell({
+          borders: { top: border, bottom: noBorder, left: noBorder, right: noBorder },
+          width: { size: 4678, type: WidthType.DXA },
+          margins: { top: 80, bottom: 40, left: 0, right: 0 },
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Data: _____ / _____ / __________', size: 18, color: '595959', font: 'Arial' })] })]
+        })
+      ]})
+    ]
+  })
+
+  const footer = new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { before: 400 },
+    border: { top: { style: BorderStyle.SINGLE, size: 6, color: 'CCCCCC', space: 8 } },
+    children: [new TextRun({ text: 'Documento generato da DAC Manager • Palazzo della Salute • LABORATORI DAC S.R.L. SOCIETÀ BENEFIT • Trattamento dati ex art. 9 GDPR', italics: true, size: 16, color: '999999', font: 'Arial' })]
+  })
 
   const doc = new Document({
+    creator: 'DAC Manager',
+    title: 'Scheda Anamnesi Pre-Visita',
+    styles: {
+      default: { document: { run: { font: 'Arial', size: 22 } } }
+    },
     sections: [{
-      properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } },
+      properties: {
+        page: {
+          size: { width: 11906, height: 16838 },
+          margin: { top: 1134, right: 1134, bottom: 1134, left: 1134 }
+        }
+      },
       children: [
         ...header,
-        datiPaziente,
-        tabDati,
-        ...motivoSection,
-        parametriTitle,
+        tabVisita,
+        new Paragraph({ children: [new TextRun({ text: '', size: 2 })], spacing: { after: 80 } }),
+        sectionTitle('DATI PAZIENTE'),
+        tabDatiPaziente,
+        new Paragraph({ children: [new TextRun({ text: '', size: 2 })], spacing: { after: 120 } }),
+        tabMotivo,
+        sectionTitle('PARAMETRI VITALI'),
         tabParametri,
-        new Paragraph({ children: [new TextRun({ text: '' })] }),
-        anamnesiTitle,
+        sectionTitle('ANAMNESI CLINICA'),
         tabAnamnesi,
-        ...allergieSection,
-        farmaciTitle,
-        farmaciContent,
-        new Paragraph({ children: [new TextRun({ text: '' })] }),
-        condizioniTitle,
+        sectionTitle('CONDIZIONI SPECIFICHE'),
         tabCondizioni,
-        ...sezioneMedico,
+        new Paragraph({ children: [new TextRun({ text: '', size: 2 })], spacing: { after: 100 } }),
+        tabNote,
+        medicoHeader,
+        tabEsame,
+        new Paragraph({ children: [new TextRun({ text: '', size: 2 })], spacing: { after: 120 } }),
+        tabDiagnosi,
+        new Paragraph({ children: [new TextRun({ text: '', size: 2 })], spacing: { after: 120 } }),
         tabTerapia,
-        ...esamiControllo,
+        new Paragraph({ children: [new TextRun({ text: '', size: 2 })], spacing: { after: 120 } }),
+        tabEsami,
+        new Paragraph({ children: [new TextRun({ text: '', size: 2 })], spacing: { after: 120 } }),
         tabControllo,
-        ...rischioTitle,
+        new Paragraph({ children: [new TextRun({ text: '', size: 2 })], spacing: { after: 120 } }),
         tabRischio,
-        ...firma,
+        new Paragraph({ children: [new TextRun({ text: '', size: 2 })], spacing: { before: 400 } }),
+        tabFirma,
+        footer
       ]
     }]
   })
 
   const blob = await Packer.toBlob(doc)
 
-  // Converti blob in base64
   const base64 = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onloadend = () => resolve((reader.result as string).split(',')[1])
