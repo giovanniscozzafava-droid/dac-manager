@@ -407,20 +407,20 @@ function InviaEmailButton({ anamnesi, onReload }: { anamnesi: Anamnesi; onReload
     if (!email.trim()) { alert('Email destinatario obbligatoria'); return }
     setSending(true)
     try {
-      const { generaAnamnesiPDF } = await import('@/lib/anamnesiPDF')
+      const { generaAnamnesiDOCX } = await import('@/lib/anamnesiDOCX')
       let paziente = null
       if (anamnesi.paziente_id) {
         const { data } = await supabase.from('pazienti').select('*').eq('id', anamnesi.paziente_id).maybeSingle()
         paziente = data
       }
-      const { blob, base64, filename } = generaAnamnesiPDF(anamnesi as any, paziente as any)
-      const path = 'anamnesi_' + anamnesi.codice + '_' + Date.now() + '.pdf'
-      const { error: upErr } = await supabase.storage.from('anamnesi-docs').upload(path, blob, { contentType: 'application/pdf', upsert: true })
+      const { blob, base64, filename } = await generaAnamnesiDOCX(anamnesi as any, paziente as any)
+      const path = 'anamnesi_' + anamnesi.codice + '_' + Date.now() + '.docx'
+      const { error: upErr } = await supabase.storage.from('anamnesi-docs').upload(path, blob, { contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', upsert: true })
       if (upErr) throw new Error('Upload fallito: ' + upErr.message)
       const { data: urlData } = supabase.storage.from('anamnesi-docs').getPublicUrl(path)
 
       const subject = 'Anamnesi paziente ' + anamnesi.paziente_nome + ' - ' + format(new Date(anamnesi.created_at), 'dd/MM/yyyy')
-      const htmlBody = '<p>Gentile <strong>' + anamnesi.specialista + '</strong>,</p><p>in allegato la scheda anamnestica del paziente <strong>' + anamnesi.paziente_nome + '</strong>.</p><p><strong>Codice:</strong> ' + anamnesi.codice + '<br/><strong>Data:</strong> ' + format(new Date(anamnesi.created_at), 'dd/MM/yyyy HH:mm') + '</p>' + (anamnesi.motivo_visita ? '<p><strong>Motivo:</strong> ' + anamnesi.motivo_visita + '</p>' : '') + '<p>Compilare il referto e reinviarlo all\'accettazione.</p><hr/><p style="font-size:11px;color:#666">Palazzo della Salute - LABORATORI DAC S.R.L. - Catenanuova (EN)<br/>Documento riservato ex art. 9 GDPR.</p>'
+      const htmlBody = '<p>Gentile <strong>' + anamnesi.specialista + '</strong>,</p><p>in allegato la scheda anamnestica del paziente <strong>' + anamnesi.paziente_nome + '</strong>.</p><p><strong>Codice:</strong> ' + anamnesi.codice + '<br/><strong>Data:</strong> ' + format(new Date(anamnesi.created_at), 'dd/MM/yyyy HH:mm') + '</p>' + (anamnesi.motivo_visita ? '<p><strong>Motivo:</strong> ' + anamnesi.motivo_visita + '</p>' : '') + '<p>Il documento allegato (.docx) è editabile: può compilare le sezioni riservate al medico (esame obiettivo, diagnosi, terapia, esami, controllo), stamparlo e consegnarlo al paziente.</p><hr/><p style="font-size:11px;color:#666">Palazzo della Salute - LABORATORI DAC S.R.L. - Catenanuova (EN)<br/>Documento riservato ex art. 9 GDPR.</p>'
 
       const { error: fnErr } = await supabase.functions.invoke('send-anamnesi-email', {
         body: { to: email.trim(), toName: anamnesi.specialista, subject, htmlBody, pdfBase64: base64, pdfName: filename, anamnesiId: anamnesi.id }
