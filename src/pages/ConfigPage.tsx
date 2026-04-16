@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
 import {
-  Settings, Users, ListChecks, Zap, Package, Building2, Factory,
+  Settings, Users, ListChecks, Zap, Package, Building2,
   Plus, X, Check, Edit3, Trash2, Save, ToggleLeft, ToggleRight
 } from 'lucide-react'
 
@@ -13,16 +13,16 @@ interface Props { operatore: Operatore }
 // MAIN
 // ═══════════════════════════════════════════════════════════
 export function ConfigPage({ operatore }: Props) {
-  const [tab, setTab] = useState<'operatori' | 'hr' | 'servizi' | 'pacchetti' | 'fornitori' | 'automazioni' | 'struttura'>('operatori')
+  const [tab, setTab] = useState<'operatori' | 'hr' | 'servizi' | 'pacchetti' | 'automazioni' | 'struttura' | 'email'>('operatori')
 
   const TABS = [
     { id: 'operatori' as const, label: '👥 Operatori', icon: Users },
     { id: 'hr' as const, label: '💼 Contratti HR', icon: Users },
     { id: 'servizi' as const, label: '📋 Servizi & Listino', icon: ListChecks },
     { id: 'pacchetti' as const, label: '📦 Pacchetti Predefiniti', icon: Package },
-    { id: 'fornitori' as const, label: '🏭 Fornitori', icon: Factory },
     { id: 'automazioni' as const, label: '⚡ Automazioni', icon: Zap },
     { id: 'struttura' as const, label: '🏥 Struttura', icon: Building2 },
+    { id: 'email' as const, label: '📧 Email', icon: Settings },
   ]
 
   return (
@@ -43,7 +43,7 @@ export function ConfigPage({ operatore }: Props) {
         </div>
       </div>
       <div className="flex-1 overflow-auto p-4 lg:p-6">
-        {tab === 'operatori' ? <OperatoriTab /> : tab === 'hr' ? <HRPlaceholder /> : tab === 'automazioni' ? <AutomazioniPanel /> : tab === 'servizi' ? <ServiziTab /> : tab === 'pacchetti' ? <PacchettiPredTab /> : tab === 'fornitori' ? <FornitoriTab /> : <StrutturaTab />}
+        {tab === 'operatori' ? <OperatoriTab /> : tab === 'hr' ? <HRPlaceholder /> : tab === 'automazioni' ? <AutomazioniPanel /> : tab === 'servizi' ? <ServiziTab /> : tab === 'pacchetti' ? <PacchettiPredTab /> : tab === 'email' ? <EmailConfigTab /> : <StrutturaTab />}
       </div>
     </div>
   )
@@ -86,7 +86,7 @@ function OperatoriTab() {
               {op.attivo ? <ToggleRight size={20} className="text-dac-green" /> : <ToggleLeft size={20} />}
             </button>
             <button onClick={() => { setEditItem(op); setShowForm(true) }} className="p-1.5 rounded-md hover:bg-white/10 text-dac-gray-400"><Edit3 size={13} /></button>
-            <button onClick={async () => { if (op.ruolo === 'admin') { alert('Non puoi eliminare un admin'); } else if (confirm(`Eliminare ${op.nome}?`)) { await supabase.from('operatori').delete().eq('id', op.id); load() } }}
+            <button onClick={async () => { if (confirm(`Eliminare ${op.nome}?`)) { await supabase.from('operatori').delete().eq('id', op.id); load() } }}
               className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={13} /></button>
           </div>
         </div>
@@ -420,125 +420,102 @@ function Skeleton({ n }: { n: number }) {
   return <div className="space-y-2">{Array.from({ length: n }).map((_, i) => <div key={i} className="h-14 rounded-lg bg-white/3 animate-pulse" />)}</div>
 }
 
-// ═══════════════════════════════════════════════════════════
-// TAB FORNITORI
-// ═══════════════════════════════════════════════════════════
-const CATEGORIE_FORNITORI = [
-  'Reagenti e diagnostica',
-  'Dispositivi medici',
-  'Cosmetici e dermatologici',
-  'Farmaci e parafarmaci',
-  'Materiale di consumo',
-  'Attrezzature e macchinari',
-  'Servizi e manutenzione',
-  'Cancelleria e ufficio',
-  'Pulizia e sanificazione',
-  'Altro',
-]
-function FornitoriTab() {
-  const [items, setItems] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
-  const [editItem, setEditItem] = useState<any>(null)
-  const [search, setSearch] = useState('')
-
-  const load = useCallback(async () => {
-    setLoading(true)
-    const { data } = await supabase.from('fornitori').select('*').order('nome')
-    setItems(data ?? []); setLoading(false)
-  }, [])
-  useEffect(() => { load() }, [load])
-
-  function onSaved() { setShowForm(false); setEditItem(null); load() }
-
-  const filtered = items.filter(f => !search || (f.nome + (f.categoria ?? '') + (f.citta ?? '')).toLowerCase().includes(search.toLowerCase()))
-
-  return (
-    <div className="space-y-3 animate-fade-in">
-      <div className="flex justify-between items-center gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Cerca fornitore..."
-            className="w-full pl-3 pr-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-white text-xs placeholder:text-dac-gray-500 focus:outline-none focus:border-dac-accent/50" />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-dac-gray-400">{items.length} fornitori</span>
-          <button onClick={() => { setEditItem(null); setShowForm(true) }} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-dac-accent text-white hover:opacity-90"><Plus size={13} /> Aggiungi</button>
-        </div>
-      </div>
-      {loading ? <Skeleton n={5} /> : filtered.length === 0 ? <div className="text-center py-12 text-dac-gray-500 text-sm">Nessun fornitore</div>
-      : <div className="space-y-2">{filtered.map(f => (
-        <div key={f.id} className={`flex items-center gap-4 px-4 py-3 rounded-xl border transition-colors ${f.attivo ? 'border-white/5 bg-dac-card/50' : 'border-white/3 bg-white/[0.01] opacity-50'}`}>
-          <div className="text-2xl">🏭</div>
-          <div className="flex-1 min-w-0">
-            <div className="text-sm font-semibold text-white truncate">{f.nome}</div>
-            <div className="text-[10px] text-dac-gray-400 truncate">
-              {f.categoria ?? '—'}{f.citta ? ` • ${f.citta}` : ''}{f.telefono ? ` • ☎ ${f.telefono}` : ''}{f.email ? ` • ${f.email}` : ''}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={async () => { await supabase.from('fornitori').update({ attivo: !f.attivo }).eq('id', f.id); load() }}
-              className="text-dac-gray-400 hover:text-white">
-              {f.attivo ? <ToggleRight size={20} className="text-dac-green" /> : <ToggleLeft size={20} />}
-            </button>
-            <button onClick={() => { setEditItem(f); setShowForm(true) }} className="p-1.5 rounded-md hover:bg-white/10 text-dac-gray-400"><Edit3 size={13} /></button>
-            <button onClick={async () => { if (confirm(`Eliminare ${f.nome}?`)) { await supabase.from('fornitori').delete().eq('id', f.id); load() } }}
-              className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={13} /></button>
-          </div>
-        </div>
-      ))}</div>}
-      {showForm && <FornitoreForm item={editItem} onClose={() => { setShowForm(false); setEditItem(null) }} onSaved={onSaved} />}
-    </div>
-  )
-}
-
-function FornitoreForm({ item, onClose, onSaved }: { item: any; onClose: () => void; onSaved: () => void }) {
-  const [nome, setNome] = useState(item?.nome ?? '')
-  const [partitaIva, setPartitaIva] = useState(item?.partita_iva ?? '')
-  const [telefono, setTelefono] = useState(item?.telefono ?? '')
-  const [email, setEmail] = useState(item?.email ?? '')
-  const [indirizzo, setIndirizzo] = useState(item?.indirizzo ?? '')
-  const [citta, setCitta] = useState(item?.citta ?? '')
-  const [categoria, setCategoria] = useState(item?.categoria ?? '')
-  const [note, setNote] = useState(item?.note ?? '')
-  const [attivo, setAttivo] = useState(item?.attivo ?? true)
-  const [saving, setSaving] = useState(false)
-
-  async function salva() {
-    if (!nome.trim()) return; setSaving(true)
-    const payload = {
-      nome: nome.trim(),
-      partita_iva: partitaIva || null, telefono: telefono || null, email: email || null,
-      indirizzo: indirizzo || null, citta: citta || null, categoria: categoria || null,
-      note: note || null, attivo,
-    }
-    if (item) await supabase.from('fornitori').update(payload).eq('id', item.id)
-    else await supabase.from('fornitori').insert(payload)
-    setSaving(false); onSaved()
-  }
-
-  return <Modal title={item ? '✏️ Modifica Fornitore' : '➕ Nuovo Fornitore'} onClose={onClose}>
-    <FL label="Nome *"><input type="text" value={nome} onChange={e => setNome(e.target.value)} className="input-field" autoFocus /></FL>
-    <div className="grid grid-cols-2 gap-3">
-      <FL label="P.IVA"><input type="text" value={partitaIva} onChange={e => setPartitaIva(e.target.value)} className="input-field" /></FL>
-      <FL label="Categoria"><select value={categoria} onChange={e => setCategoria(e.target.value)} className="input-field">
-        <option value="">— Seleziona —</option>
-        {CATEGORIE_FORNITORI.map(c => <option key={c} value={c}>{c}</option>)}
-      </select></FL>
-    </div>
-    <div className="grid grid-cols-2 gap-3">
-      <FL label="Telefono"><input type="text" value={telefono} onChange={e => setTelefono(e.target.value)} className="input-field" /></FL>
-      <FL label="Email"><input type="email" value={email} onChange={e => setEmail(e.target.value)} className="input-field" /></FL>
-    </div>
-    <FL label="Indirizzo"><input type="text" value={indirizzo} onChange={e => setIndirizzo(e.target.value)} className="input-field" /></FL>
-    <FL label="Città"><input type="text" value={citta} onChange={e => setCitta(e.target.value)} className="input-field" /></FL>
-    <FL label="Note"><textarea value={note} onChange={e => setNote(e.target.value)} className="input-field resize-none" rows={2} /></FL>
-    <label className="flex items-center gap-2 text-xs text-dac-gray-300 cursor-pointer">
-      <input type="checkbox" checked={attivo} onChange={e => setAttivo(e.target.checked)} /> Attivo
-    </label>
-    <Btns onClose={onClose} onSave={salva} saving={saving} disabled={!nome.trim()} />
-  </Modal>
-}
-
 function HRPlaceholder() {
   return <div className="text-center py-16 text-dac-gray-500"><div className="text-4xl mb-3">💼</div><div className="text-sm">Contratti HR — in sviluppo</div></div>
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// TAB EMAIL CONFIG
+// ═══════════════════════════════════════════════════════════
+function EmailConfigTab() {
+  const [config, setConfig] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+  const [mittenteEmail, setMittenteEmail] = useState('')
+  const [mittenteNome, setMittenteNome] = useState('')
+  const [ccDirezione, setCcDirezione] = useState('')
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await supabase.from('email_config').select('*').eq('attivo', true).maybeSingle()
+      if (data) {
+        setConfig(data)
+        setMittenteEmail(data.mittente_email ?? '')
+        setMittenteNome(data.mittente_nome ?? 'Palazzo della Salute')
+        setCcDirezione(data.cc_direzione ?? '')
+      } else {
+        setMittenteNome('Palazzo della Salute')
+      }
+      setLoading(false)
+    }
+    load()
+  }, [])
+
+  async function salva() {
+    if (!mittenteEmail.trim()) { alert('Email mittente obbligatoria'); return }
+    setSaving(true)
+    const payload = {
+      mittente_email: mittenteEmail.trim(),
+      mittente_nome: mittenteNome.trim() || 'Palazzo della Salute',
+      cc_direzione: ccDirezione.trim() || null,
+      attivo: true,
+      updated_at: new Date().toISOString(),
+    }
+    let error
+    if (config?.id) {
+      const res = await supabase.from('email_config').update(payload).eq('id', config.id)
+      error = res.error
+    } else {
+      const res = await supabase.from('email_config').insert(payload).select().maybeSingle()
+      error = res.error
+      if (res.data) setConfig(res.data)
+    }
+    setSaving(false)
+    if (error) { alert('Errore: ' + error.message); return }
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  if (loading) return <Skeleton n={3} />
+
+  return (
+    <div className="space-y-6 animate-fade-in max-w-2xl">
+      <div className="px-4 py-3 rounded-xl bg-dac-accent/5 border border-dac-accent/10">
+        <div className="text-xs text-dac-gray-300">
+          📧 Questa configurazione definisce il mittente per tutte le email automatiche (GDPR, anamnesi, recall) inviate tramite Brevo. 
+          L'email mittente deve essere verificata su Brevo per evitare che le email finiscano in spam.
+        </div>
+      </div>
+
+      <Section title="Mittente Email">
+        <FL label="Email mittente *">
+          <input type="email" value={mittenteEmail} onChange={e => setMittenteEmail(e.target.value)}
+            className="input-field" placeholder="noreply@palazzodellasalute.it" />
+        </FL>
+        <FL label="Nome mittente">
+          <input type="text" value={mittenteNome} onChange={e => setMittenteNome(e.target.value)}
+            className="input-field" placeholder="Palazzo della Salute" />
+        </FL>
+      </Section>
+
+      <Section title="Copie conoscenza">
+        <FL label="Email CC direzione (opzionale)">
+          <input type="email" value={ccDirezione} onChange={e => setCcDirezione(e.target.value)}
+            className="input-field" placeholder="direzione@palazzodellasalute.it" />
+        </FL>
+        <p className="text-[10px] text-dac-gray-500">Riceverà una copia di ogni email inviata (referti, GDPR, recall).</p>
+      </Section>
+
+      <div className="sticky bottom-0 bg-dac-navy/90 backdrop-blur-sm py-3 border-t border-white/5">
+        <button onClick={salva} disabled={saving}
+          className={`flex items-center justify-center gap-2 w-full py-3 rounded-xl text-sm font-semibold transition-all ${saved ? 'bg-dac-green text-white' : 'bg-dac-accent text-white hover:opacity-90'} disabled:opacity-50`}>
+          {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            : saved ? <><Check size={16} /> Salvato!</>
+            : <><Save size={14} /> Salva Configurazione Email</>}
+        </button>
+      </div>
+    </div>
+  )
 }
