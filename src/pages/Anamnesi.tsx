@@ -237,7 +237,7 @@ function AnamnesiForm({ operatore, specialistiLista, onClose, onSaved }: { opera
               </select>
             </div>
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Motivo visita</label>
-              <textarea value={motivo} onChange={e => setMotivo(e.target.value)} className="input-field resize-none" rows={2} placeholder="Motivo della visita..." />
+              <textarea value={motivo} onChange={e => setMotivo(e.target.value)} className="input-field resize-none" rows={2} placeholder="" />
             </div>
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Note infermiera</label>
               <textarea value={noteInf} onChange={e => setNoteInf(e.target.value)} className="input-field resize-none" rows={2} />
@@ -269,9 +269,9 @@ function AnamnesiForm({ operatore, specialistiLista, onClose, onSaved }: { opera
 
           {tab === 'clinica' && <>
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Patologie</label>
-              <textarea value={patologie} onChange={e => setPatologie(e.target.value)} className="input-field resize-none" rows={2} placeholder="Diabete, Ipertensione..." /></div>
+              <textarea value={patologie} onChange={e => setPatologie(e.target.value)} className="input-field resize-none" rows={2} placeholder="" /></div>
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Allergie</label>
-              <textarea value={allergie} onChange={e => setAllergie(e.target.value)} className="input-field resize-none" rows={2} placeholder="Farmaci, Lattice, Nichel..." /></div>
+              <textarea value={allergie} onChange={e => setAllergie(e.target.value)} className="input-field resize-none" rows={2} placeholder="" /></div>
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Farmaci in uso</label>
               <textarea value={farmaci} onChange={e => setFarmaci(e.target.value)} className="input-field resize-none" rows={2} /></div>
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Interventi pregressi</label>
@@ -283,9 +283,9 @@ function AnamnesiForm({ operatore, specialistiLista, onClose, onSaved }: { opera
               Sezione specifica per Medicina del Lavoro
             </div>
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Mansione</label>
-              <input type="text" value={mansione} onChange={e => setMansione(e.target.value)} className="input-field" placeholder="Operaio, Impiegato, Autista..." /></div>
+              <input type="text" value={mansione} onChange={e => setMansione(e.target.value)} className="input-field" placeholder="" /></div>
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Rischio lavorativo</label>
-              <textarea value={rischioLav} onChange={e => setRischioLav(e.target.value)} className="input-field resize-none" rows={2} placeholder="Agenti chimici, rumore..." /></div>
+              <textarea value={rischioLav} onChange={e => setRischioLav(e.target.value)} className="input-field resize-none" rows={2} placeholder="" /></div>
             <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Idoneita</label>
               <select value={idoneita} onChange={e => setIdoneita(e.target.value)} className="input-field">
                 <option value="">-</option><option>Idoneo</option><option>Idoneo con limitazioni</option><option>Idoneo con prescrizioni</option><option>Non idoneo temporaneo</option><option>Non idoneo permanente</option>
