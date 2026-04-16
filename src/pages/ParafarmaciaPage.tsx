@@ -10,7 +10,7 @@ import {
 
 interface CassaItem {
   id: string; data: string; tipo: string; importo: number
-  metodo: string | null; operatore_nome: string | null; note: string | null
+  metodo: string | null; operatore_nome: string | null; descrizione: string | null; note: string | null
 }
 
 interface ProdottoParafarmacia {
@@ -135,12 +135,13 @@ function CassaForm({ data, operatore, onClose, onSaved }: { data: string; operat
   const [tipo, setTipo] = useState('Entrata')
   const [importo, setImporto] = useState(0)
   const [metodo, setMetodo] = useState('Contanti')
+  const [descrizione, setDescrizione] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
 
   async function salva() {
-    if (!importo) return; setSaving(true)
-    const payload = { data, tipo, importo, metodo, operatore_nome: operatore.nome, note: note || null }
+    if (!importo || !descrizione.trim()) return; setSaving(true)
+    const payload = { data, tipo, importo, metodo, operatore_nome: operatore.nome, descrizione: descrizione.trim(), note: note || null }
     console.log('[CassaForm] insert payload:', payload)
     const { data: inserted, error } = await supabase.from('parafarmacia_cassa').insert(payload).select()
     console.log('[CassaForm] result:', { inserted, error })
@@ -165,12 +166,14 @@ function CassaForm({ data, operatore, onClose, onSaved }: { data: string; operat
             <input type="number" value={importo || ''} onChange={e => setImporto(Number(e.target.value))} className="input-field text-center text-lg font-bold" min={0} step={0.01} autoFocus /></div>
           <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Pagamento</label>
             <select value={metodo} onChange={e => setMetodo(e.target.value)} className="input-field">{METODI.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+          <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Descrizione movimento *</label>
+            <input type="text" value={descrizione} onChange={e => setDescrizione(e.target.value)} className="input-field" placeholder="Es. Vendita Eucerin Crema solare, Acquisto ordine Bayer..." /></div>
           <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Note</label>
-            <input type="text" value={note} onChange={e => setNote(e.target.value)} className="input-field" placeholder="Descrizione..." /></div>
+            <input type="text" value={note} onChange={e => setNote(e.target.value)} className="input-field" placeholder="Note aggiuntive..." /></div>
         </div>
         <div className="flex gap-2 px-5 py-4 border-t border-white/5">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-white/5 text-dac-gray-300 hover:bg-white/10">Annulla</button>
-          <button onClick={salva} disabled={saving || !importo}
+          <button onClick={salva} disabled={saving || !importo || !descrizione.trim()}
             className={`flex-1 py-2.5 rounded-xl text-sm font-semibold text-white hover:opacity-90 disabled:opacity-30 flex items-center justify-center gap-2 ${tipo === 'Entrata' ? 'bg-dac-green' : 'bg-dac-red'}`}>
             {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Check size={14} /> Registra</>}
           </button>

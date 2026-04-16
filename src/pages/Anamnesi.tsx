@@ -3,7 +3,8 @@ import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { ClipboardList, Plus, X, Check, Search, Edit3, Trash2, Send, Eye } from 'lucide-react'
+import { ClipboardList, Plus, X, Check, Search, Edit3, Trash2, Send, Eye, Mail } from 'lucide-react'
+import { generaAnamnesiPDF } from '@/lib/anamnesiPDF'
 
 interface Anamnesi {
   id: string; codice: string; paziente_id: string | null; paziente_nome: string; specialista: string | null
@@ -374,7 +375,8 @@ function AnamnesiDetail({ item: a, onClose, onDeleted }: { item: Anamnesi; onClo
           )}
         </div>
 
-        <div className="p-4 border-t border-white/5">
+        <div className="p-4 border-t border-white/5 space-y-2">
+          <InviaEmailButton anamnesi={a} />
           <button onClick={async () => { if (confirm('Eliminare?')) { await supabase.from('anamnesi').delete().eq('id', a.id); onDeleted() } }}
             className="w-full py-2 rounded-xl text-xs font-semibold text-dac-red bg-dac-red/10 hover:bg-dac-red/20 transition-colors">🗑️ Elimina</button>
         </div>
@@ -393,4 +395,102 @@ function DR({ label, value }: { label: string; value: string }) {
 
 function Mini({ label, value }: { label: string; value: string }) {
   return <div className="text-center p-2 rounded-lg bg-white/3"><div className="text-sm font-bold text-white">{value}</div><div className="text-[8px] text-dac-gray-500 uppercase">{label}</div></div>
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// BOTTONE INVIA EMAIL ALLO SPECIALISTA
+// ═══════════════════════════════════════════════════════════
+function InviaEmailButton({ anamnesi }: { anamnesi: Anamnesi }) {
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(anamnesi.email_inviata)
+  const [email, setEmail] = useState('')
+  const [showForm, setShowForm] = useState(false)
+
+  async function invia() {
+    if (!email.trim()) { alert('Email destinatario obbligatoria'); return }
+    setSending(true)
+
+    try {
+      // Carica dati paziente
+      let paziente = null
+      if (anamnesi.paziente_id) {
+        const { data } = await supabase.from('pazienti').select('*').eq('id', anamnesi.paziente_id).maybeSingle()
+        paziente = data
+      }
+
+      // Genera PDF
+      const { blob, base64, filename } = generaAnamnesiPDF(anamnesi as any, paziente as any)
+
+      // Upload su Storage
+      const path = `anamnesi_${anamnesi.codice}_${Date.now()}.pdf`
+      const { error: upErr } = await supabase.storage.from('anamnesi-docs').upload(path, blob, { contentType: 'application/pdf', upsert: true })
+      if (upErr) throw new Error('Upload fallito: ' + upErr.message)
+
+      const { data: urlData } = supabase.storage.from('anamnesi-docs').getPublicUrl(path)
+      const docUrl = urlData.publicUrl
+
+      // Chiama edge function
+      const subject = `Anamnesi paziente ${anamnesi.paziente_nome} - ${format(new Date(anamnesi.created_at), 'dd/MM/yyyy')}`
+      const htmlBody = `<p>Gentile <strong>${anamnesi.specialista}</strong>,</p><p>in allegato la scheda anamnestica del paziente <strong>${anamnesi.paziente_nome}</strong>.</p><p><strong>Codice anamnesi:</strong> ${anamnesi.codice}<br/><strong>Data compilazione:</strong> ${format(new Date(anamnesi.created_at), 'dd/MM/yyyy HH:mm')}</p><p>${anamnesi.motivo_visita ? '<strong>Motivo visita:</strong> ' + anamnesi.motivo_visita : ''}</p><hr/><p style="font-size:11px;color:#666">Palazzo della Salute - LABORATORI DAC S.R.L.<br/>Documento riservato. Trattamento dati ex art. 9 GDPR.</p>`
+
+      const { data: fnData, error: fnErr } = await supabase.functions.invoke('send-anamnesi-email', {
+        body: {
+          to: email.trim(),
+          toName: anamnesi.specialista,
+          subject,
+          htmlBody,
+          pdfBase64: base64,
+          pdfName: filename,
+          anamnesiId: anamnesi.id,
+        }
+      })
+
+      if (fnErr) throw new Error('Email fallita: ' + fnErr.message)
+
+      // Salva doc_url
+      await supabase.from('anamnesi').update({ doc_url: docUrl }).eq('id', anamnesi.id)
+
+      setSent(true)
+      setShowForm(false)
+      alert('Email inviata con successo a ' + email)
+    } catch (e: any) {
+      console.error('Errore invio:', e)
+      alert('Errore: ' + (e.message || 'invio fallito'))
+    } finally {
+      setSending(false)
+    }
+  }
+
+  if (sent) {
+    return (
+      <div className="w-full py-2 rounded-xl text-xs font-semibold text-center bg-dac-green/10 text-dac-green">
+        ✅ Email inviata
+      </div>
+    )
+  }
+
+  if (!showForm) {
+    return (
+      <button onClick={() => setShowForm(true)}
+        className="w-full py-2 rounded-xl text-xs font-semibold bg-dac-accent text-white hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+        <Mail size={13} /> Invia allo Specialista
+      </button>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+        placeholder="email@specialista.it"
+        className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-xs placeholder:text-dac-gray-500 focus:outline-none focus:border-dac-accent/50" />
+      <div className="flex gap-2">
+        <button onClick={() => setShowForm(false)} className="flex-1 py-2 rounded-lg text-xs font-semibold bg-white/5 text-dac-gray-300">Annulla</button>
+        <button onClick={invia} disabled={sending || !email.trim()}
+          className="flex-1 py-2 rounded-lg text-xs font-semibold bg-dac-accent text-white disabled:opacity-30 flex items-center justify-center gap-2">
+          {sending ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Send size={11} /> Invia</>}
+        </button>
+      </div>
+    </div>
+  )
 }
