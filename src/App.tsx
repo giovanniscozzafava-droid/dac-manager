@@ -17,12 +17,7 @@ import { ParafarmaciaPage } from './pages/ParafarmaciaPage';
 import { ContabilitaPage } from './pages/ContabilitaPage';
 import { ConfigPage } from './pages/ConfigPage';
 
-let AnamnesiComp: React.ComponentType<any>;
-try {
-  AnamnesiComp = require('./pages/Anamnesi').AnamnesiPage || require('./pages/Anamnesi').default;
-} catch {
-  AnamnesiComp = () => <div className="p-8 text-white">Anamnesi</div>;
-}
+import { AnamnesiPage as AnamnesiComp } from './pages/Anamnesi';
 
 export default function App() {
   const { loading, operatore, authError, isAdmin, login, logout } = useAuth();
