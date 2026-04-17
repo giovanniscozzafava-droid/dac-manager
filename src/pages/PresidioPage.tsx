@@ -19,6 +19,8 @@ interface Articolo {
   lotto: string | null
   fornitore_id: string | null
   prezzo_unitario: number
+  prezzo_netto: number
+  aliquota_iva: number
   note: string | null
   attivo: boolean
   created_at: string
@@ -28,6 +30,12 @@ interface Fornitore { id: string; nome: string }
 
 const CATEGORIE = ['Tutte', 'Medicazione', 'Farmaci', 'Strumenti', 'DPI', 'Emergenza', 'Consumabili']
 const UNITA = ['pz', 'cf', 'ml', 'g', 'kg', 'l', 'm', 'paia']
+const ALIQUOTE_IVA = [
+  { val: 0, label: '0% (esente)' },
+  { val: 4, label: '4% (agevolata)' },
+  { val: 10, label: '10% (ridotta)' },
+  { val: 22, label: '22% (ordinaria)' },
+]
 
 export function PresidioPage({ operatore }: Props) {
   const [items, setItems] = useState<Articolo[]>([])
@@ -189,7 +197,10 @@ function ArticoloCard({ articolo, fornitore, onScarico, onEdit, onHistory }:
           </div>
           {articolo.lotto && <div className="text-[10px] text-dac-gray-500">Lotto: {articolo.lotto}</div>}
           {articolo.prezzo_unitario > 0 && (
-            <div className="text-[10px] text-dac-green">€ {articolo.prezzo_unitario.toFixed(2)}/{articolo.unita_misura}</div>
+            <div className="text-[10px] text-dac-green">
+              € {articolo.prezzo_unitario.toFixed(4)}/{articolo.unita_misura} IVA {articolo.aliquota_iva}%
+              <span className="text-dac-gray-500"> · netto € {(articolo.prezzo_netto || 0).toFixed(4)}</span>
+            </div>
           )}
         </div>
         <button onClick={onEdit} className="p-1 rounded hover:bg-white/5 text-dac-gray-400 flex-shrink-0">
@@ -257,17 +268,25 @@ function ArticoloForm({ articolo, fornitori, onClose, onSaved }:
   const [scadenza, setScadenza] = useState(articolo?.scadenza ?? '')
   const [lotto, setLotto] = useState(articolo?.lotto ?? '')
   const [fornitoreId, setFornitoreId] = useState(articolo?.fornitore_id ?? '')
-  const [prezzoUnitario, setPrezzoUnitario] = useState<number | ''>(articolo?.prezzo_unitario ?? '')
+  const [aliquotaIva, setAliquotaIva] = useState(articolo?.aliquota_iva ?? 22)
+
+  // Input utente: prezzo confezione IVATO + pezzi per confezione
+  const [prezzoConfIvato, setPrezzoConfIvato] = useState<number | ''>('')
+  const [pezziPerConf, setPezziPerConf] = useState<number | ''>('')
+  // Prezzo unitario IVATO (calcolato o manuale)
+  const [prezzoUnitarioIvato, setPrezzoUnitarioIvato] = useState<number | ''>(articolo?.prezzo_unitario ?? '')
+
   const [note, setNote] = useState(articolo?.note ?? '')
   const [saving, setSaving] = useState(false)
 
-  // Helper calcolo prezzo unitario da confezione
-  const [prezzoConfezione, setPrezzoConfezione] = useState<number | ''>('')
-  const [pezziPerConfezione, setPezziPerConfezione] = useState<number | ''>('')
+  // Calcolo automatico scorporo IVA
+  const unitIvato = Number(prezzoUnitarioIvato) || 0
+  const unitNetto = unitIvato / (1 + aliquotaIva / 100)
+  const unitIva = unitIvato - unitNetto
 
-  function calcolaPrezzoUnitario() {
-    if (typeof prezzoConfezione === 'number' && typeof pezziPerConfezione === 'number' && pezziPerConfezione > 0) {
-      setPrezzoUnitario(Number((prezzoConfezione / pezziPerConfezione).toFixed(4)))
+  function calcolaDaConfezione() {
+    if (typeof prezzoConfIvato === 'number' && typeof pezziPerConf === 'number' && pezziPerConf > 0) {
+      setPrezzoUnitarioIvato(Number((prezzoConfIvato / pezziPerConf).toFixed(4)))
     }
   }
 
@@ -283,7 +302,9 @@ function ArticoloForm({ articolo, fornitori, onClose, onSaved }:
       scadenza: scadenza || null,
       lotto: lotto.trim() || null,
       fornitore_id: fornitoreId || null,
-      prezzo_unitario: Number(prezzoUnitario) || 0,
+      prezzo_unitario: unitIvato,
+      prezzo_netto: Number(unitNetto.toFixed(4)),
+      aliquota_iva: aliquotaIva,
       note: note.trim() || null,
       updated_at: new Date().toISOString(),
     }
@@ -342,27 +363,52 @@ function ArticoloForm({ articolo, fornitori, onClose, onSaved }:
             </div>
           </div>
 
-          {/* Prezzo acquisto: calcolatore da confezione */}
+          {/* Prezzo acquisto con IVA */}
           <div className="rounded-xl border border-dac-green/20 bg-dac-green/5 p-3 space-y-2">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-dac-green">Prezzo di acquisto</div>
+            <div className="flex items-center justify-between">
+              <div className="text-[10px] font-semibold uppercase tracking-wider text-dac-green">Prezzo di acquisto (IVATO)</div>
+              <select value={aliquotaIva} onChange={e => setAliquotaIva(Number(e.target.value))}
+                className="bg-dac-deep border border-white/10 rounded-lg px-2 py-1 text-[10px] text-white">
+                {ALIQUOTE_IVA.map(a => <option key={a.val} value={a.val}>IVA {a.label}</option>)}
+              </select>
+            </div>
+
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-[9px] text-dac-gray-400 mb-0.5">€ confezione</label>
-                <input type="number" value={prezzoConfezione} onChange={e => setPrezzoConfezione(e.target.value === '' ? '' : Number(e.target.value))} className="input-field" placeholder="es. 20.00" step="0.01" />
+                <label className="block text-[9px] text-dac-gray-400 mb-0.5">€ confezione IVATO</label>
+                <input type="number" value={prezzoConfIvato} onChange={e => setPrezzoConfIvato(e.target.value === '' ? '' : Number(e.target.value))} className="input-field" placeholder="20.00" step="0.01" />
               </div>
               <div>
                 <label className="block text-[9px] text-dac-gray-400 mb-0.5">Pezzi/confezione</label>
-                <input type="number" value={pezziPerConfezione} onChange={e => setPezziPerConfezione(e.target.value === '' ? '' : Number(e.target.value))} className="input-field" placeholder="es. 100" />
+                <input type="number" value={pezziPerConf} onChange={e => setPezziPerConf(e.target.value === '' ? '' : Number(e.target.value))} className="input-field" placeholder="100" />
               </div>
             </div>
-            <button type="button" onClick={calcolaPrezzoUnitario}
+            <button type="button" onClick={calcolaDaConfezione}
               className="w-full py-1.5 rounded-lg text-[10px] font-semibold bg-dac-green/15 text-dac-green hover:bg-dac-green/25">
               Calcola prezzo unitario
             </button>
+
             <div>
-              <label className="block text-[9px] text-dac-gray-400 mb-0.5">€ per {unita} (modificabile)</label>
-              <input type="number" value={prezzoUnitario} onChange={e => setPrezzoUnitario(e.target.value === '' ? '' : Number(e.target.value))} className="input-field font-bold text-dac-green" step="0.0001" placeholder="0.00" />
+              <label className="block text-[9px] text-dac-gray-400 mb-0.5">€ IVATO per {unita}</label>
+              <input type="number" value={prezzoUnitarioIvato} onChange={e => setPrezzoUnitarioIvato(e.target.value === '' ? '' : Number(e.target.value))} className="input-field font-bold text-dac-green" step="0.0001" placeholder="0.00" />
             </div>
+
+            {unitIvato > 0 && (
+              <div className="grid grid-cols-3 gap-1 pt-2 border-t border-dac-green/10">
+                <div className="text-center">
+                  <div className="text-[9px] text-dac-gray-400">Netto</div>
+                  <div className="text-xs font-bold text-white">€ {unitNetto.toFixed(4)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[9px] text-dac-gray-400">IVA {aliquotaIva}%</div>
+                  <div className="text-xs font-bold text-dac-orange">€ {unitIva.toFixed(4)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[9px] text-dac-gray-400">Totale</div>
+                  <div className="text-xs font-bold text-dac-green">€ {unitIvato.toFixed(4)}</div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -417,7 +463,13 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
   const [pazienteSearch, setPazienteSearch] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const costoTotale = quantita * articolo.prezzo_unitario
+  const aliquota = articolo.aliquota_iva ?? 22
+  const unitIvato = articolo.prezzo_unitario || 0
+  const unitNetto = articolo.prezzo_netto || unitIvato / (1 + aliquota / 100)
+
+  const totaleIvato = quantita * unitIvato
+  const totaleNetto = quantita * unitNetto
+  const totaleIva = totaleIvato - totaleNetto
 
   useEffect(() => {
     if (pazienteSearch.length < 2) { setPazienti([]); return }
@@ -437,15 +489,15 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
     setSaving(true)
 
     const pazSelezionato = pazienti.find(p => p.id === pazienteId)
-    const costo = Number((quantita * articolo.prezzo_unitario).toFixed(2))
+    const ivato = Number(totaleIvato.toFixed(2))
+    const netto = Number(totaleNetto.toFixed(2))
+    const iva = Number(totaleIva.toFixed(2))
 
-    // 1. Aggiorna quantità articolo
     const { error: e1 } = await supabase.from('inventario_presidio').update({
       quantita: articolo.quantita - quantita,
       updated_at: new Date().toISOString()
     }).eq('id', articolo.id)
 
-    // 2. Registra scarico
     const { error: e2 } = await supabase.from('presidio_scarichi').insert({
       articolo_id: articolo.id,
       articolo_nome: articolo.nome,
@@ -455,18 +507,23 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
       paziente_nome: pazSelezionato ? `${pazSelezionato.cognome} ${pazSelezionato.nome}` : null,
       operatore_nome: operatore.nome,
       operatore_email: operatore.email,
-      costo_totale: costo,
+      costo_totale: ivato,
+      imponibile: netto,
+      iva,
+      aliquota_iva: aliquota,
     })
 
-    // 3. Se c'è un costo > 0, registra automaticamente in costi
     let e3: any = null
-    if (costo > 0) {
+    if (ivato > 0) {
       const descrizione = `Consumo Presidio - ${articolo.nome} (${quantita} ${articolo.unita_misura})${pazSelezionato ? ` - ${pazSelezionato.cognome} ${pazSelezionato.nome}` : ''}${motivo ? ` - ${motivo}` : ''}`
       const res = await supabase.from('costi').insert({
         data: new Date().toISOString().split('T')[0],
         categoria: 'Consumo Presidio',
         descrizione,
-        importo: costo,
+        importo: ivato,
+        imponibile: netto,
+        iva,
+        aliquota_iva: aliquota,
         operatore_nome: operatore.nome,
       })
       e3 = res.error
@@ -480,8 +537,8 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-dac-card border border-white/10 rounded-2xl w-full max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+      <div className="bg-dac-card border border-white/10 rounded-2xl w-full max-w-md mx-4 shadow-2xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 sticky top-0 bg-dac-card">
           <h3 className="font-display font-bold text-white">Scarica {articolo.nome}</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-dac-gray-400"><X size={18} /></button>
         </div>
@@ -494,9 +551,9 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
               <div className="text-[9px] text-dac-gray-500">{articolo.unita_misura}</div>
             </div>
             <div className="rounded-lg bg-dac-green/5 p-3 text-center">
-              <div className="text-[10px] text-dac-gray-400 uppercase mb-1">Prezzo unit.</div>
-              <div className="text-xl font-bold text-dac-green">€ {articolo.prezzo_unitario.toFixed(2)}</div>
-              <div className="text-[9px] text-dac-gray-500">per {articolo.unita_misura}</div>
+              <div className="text-[10px] text-dac-gray-400 uppercase mb-1">Prezzo unit. IVATO</div>
+              <div className="text-xl font-bold text-dac-green">€ {unitIvato.toFixed(4)}</div>
+              <div className="text-[9px] text-dac-gray-500">IVA {aliquota}%</div>
             </div>
           </div>
 
@@ -505,10 +562,23 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
             <input type="number" value={quantita} onChange={e => setQuantita(Number(e.target.value))} className="input-field text-2xl font-bold text-center" min="0.01" max={articolo.quantita} step="0.01" autoFocus />
           </div>
 
-          {articolo.prezzo_unitario > 0 && (
-            <div className="rounded-lg bg-dac-green/10 border border-dac-green/20 p-3 text-center">
-              <div className="text-[10px] text-dac-gray-400 uppercase mb-1">Costo operazione (verrà registrato nei costi)</div>
-              <div className="text-2xl font-bold text-dac-green">€ {costoTotale.toFixed(2)}</div>
+          {unitIvato > 0 && (
+            <div className="rounded-lg bg-dac-green/10 border border-dac-green/20 p-3">
+              <div className="text-[10px] text-dac-gray-400 uppercase mb-2 text-center">Costo operazione (verrà registrato nei costi)</div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="text-center">
+                  <div className="text-[9px] text-dac-gray-400">Imponibile</div>
+                  <div className="text-sm font-bold text-white">€ {totaleNetto.toFixed(2)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[9px] text-dac-gray-400">IVA {aliquota}%</div>
+                  <div className="text-sm font-bold text-dac-orange">€ {totaleIva.toFixed(2)}</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[9px] text-dac-gray-400">Totale</div>
+                  <div className="text-sm font-bold text-dac-green">€ {totaleIvato.toFixed(2)}</div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -533,7 +603,7 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
           </div>
         </div>
 
-        <div className="flex gap-2 px-5 py-4 border-t border-white/5">
+        <div className="flex gap-2 px-5 py-4 border-t border-white/5 sticky bottom-0 bg-dac-card">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-white/5 text-dac-gray-300 hover:bg-white/10">Annulla</button>
           <button onClick={salva} disabled={saving || quantita <= 0 || quantita > articolo.quantita}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-dac-red text-white hover:opacity-90 disabled:opacity-30 flex items-center justify-center gap-2">
@@ -554,8 +624,10 @@ function HistoryModal({ articolo, onClose }: { articolo: Articolo; onClose: () =
       .then(({ data }) => { setLog(data ?? []); setLoading(false) })
   }, [articolo.id])
 
-  const totaleCosto = log.reduce((s, l) => s + (Number(l.costo_totale) || 0), 0)
-  const totaleQuantita = log.reduce((s, l) => s + (Number(l.quantita) || 0), 0)
+  const totTot = log.reduce((s, l) => s + (Number(l.costo_totale) || 0), 0)
+  const totNet = log.reduce((s, l) => s + (Number(l.imponibile) || 0), 0)
+  const totIva = log.reduce((s, l) => s + (Number(l.iva) || 0), 0)
+  const totQta = log.reduce((s, l) => s + (Number(l.quantita) || 0), 0)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
@@ -566,14 +638,25 @@ function HistoryModal({ articolo, onClose }: { articolo: Articolo; onClose: () =
         </div>
 
         {log.length > 0 && (
-          <div className="px-5 py-3 border-b border-white/5 grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-white/3 p-2 text-center">
-              <div className="text-[10px] text-dac-gray-400 uppercase">Totale scaricato</div>
-              <div className="text-lg font-bold text-white">{totaleQuantita} {articolo.unita_misura}</div>
-            </div>
-            <div className="rounded-lg bg-dac-green/5 p-2 text-center">
-              <div className="text-[10px] text-dac-gray-400 uppercase">Costo totale</div>
-              <div className="text-lg font-bold text-dac-green">€ {totaleCosto.toFixed(2)}</div>
+          <div className="px-5 py-3 border-b border-white/5">
+            <div className="grid grid-cols-4 gap-2">
+              <div className="rounded-lg bg-white/3 p-2 text-center">
+                <div className="text-[9px] text-dac-gray-400 uppercase">Scaricato</div>
+                <div className="text-sm font-bold text-white">{totQta.toFixed(2)}</div>
+                <div className="text-[9px] text-dac-gray-500">{articolo.unita_misura}</div>
+              </div>
+              <div className="rounded-lg bg-white/3 p-2 text-center">
+                <div className="text-[9px] text-dac-gray-400 uppercase">Imponibile</div>
+                <div className="text-sm font-bold text-white">€ {totNet.toFixed(2)}</div>
+              </div>
+              <div className="rounded-lg bg-dac-orange/5 p-2 text-center">
+                <div className="text-[9px] text-dac-gray-400 uppercase">IVA</div>
+                <div className="text-sm font-bold text-dac-orange">€ {totIva.toFixed(2)}</div>
+              </div>
+              <div className="rounded-lg bg-dac-green/5 p-2 text-center">
+                <div className="text-[9px] text-dac-gray-400 uppercase">Totale</div>
+                <div className="text-sm font-bold text-dac-green">€ {totTot.toFixed(2)}</div>
+              </div>
             </div>
           </div>
         )}
@@ -588,7 +671,13 @@ function HistoryModal({ articolo, onClose }: { articolo: Articolo; onClose: () =
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-semibold text-dac-red">- {l.quantita} {articolo.unita_misura}</span>
                     <div className="flex items-center gap-2">
-                      {l.costo_totale > 0 && <span className="text-xs font-semibold text-dac-green">€ {Number(l.costo_totale).toFixed(2)}</span>}
+                      {l.costo_totale > 0 && (
+                        <span className="text-[10px] text-dac-gray-300">
+                          <span className="text-white">€ {Number(l.imponibile || 0).toFixed(2)}</span>
+                          <span className="text-dac-orange"> + € {Number(l.iva || 0).toFixed(2)} IVA</span>
+                          <span className="text-dac-green"> = € {Number(l.costo_totale).toFixed(2)}</span>
+                        </span>
+                      )}
                       <span className="text-[10px] text-dac-gray-500">{format(new Date(l.created_at), 'dd/MM/yyyy HH:mm', { locale: it })}</span>
                     </div>
                   </div>
