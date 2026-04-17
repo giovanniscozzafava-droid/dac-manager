@@ -1,18 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
-import type { User, Session } from '@supabase/supabase-js';
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 
 export interface Operatore {
   id: string;
   nome: string;
   ruolo: string;
-  settore: string;
+  settore?: string | null;
   email: string;
   attivo: boolean;
-  emoji: string;
-  colore: string;
-  colore_bordo: string;
-  area: string;
+  emoji?: string | null;
+  colore?: string | null;
+  colore_bordo?: string | null;
+  area?: string | null;
 }
 
 export function useAuth() {
@@ -34,6 +34,7 @@ export function useAuth() {
 
   useEffect(() => {
     let mounted = true;
+    let currentUserId: string | null = null;
 
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
@@ -43,6 +44,7 @@ export function useAuth() {
       }
       const op = await matchOperatore(session.user.email);
       if (mounted) {
+        currentUserId = session.user.id;
         setSession(session);
         setUser(session.user);
         setOperatore(op);
@@ -55,18 +57,32 @@ export function useAuth() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
-      // TOKEN_REFRESHED non deve ri-renderizzare tutta l'app: aggiorniamo solo session
+      console.log('[auth]', event, newSession?.user?.id);
+
+      // TOKEN_REFRESHED: aggiorna solo la session, lascia user/operatore invariati
       if (event === 'TOKEN_REFRESHED') {
-        setSession(newSession);
+        if (newSession) setSession(newSession);
         return;
       }
-      if (!newSession?.user?.email) {
+
+      // SIGNED_OUT o nessuna sessione: reset
+      if (event === 'SIGNED_OUT' || !newSession?.user?.email) {
+        currentUserId = null;
         setSession(null);
         setUser(null);
         setOperatore(null);
         setAuthError('');
         return;
       }
+
+      // SIGNED_IN / INITIAL_SESSION: se stesso utente, aggiorna solo session
+      if (currentUserId === newSession.user.id) {
+        setSession(newSession);
+        return;
+      }
+
+      // Nuovo utente: carica operatore
+      currentUserId = newSession.user.id;
       const op = await matchOperatore(newSession.user.email);
       setSession(newSession);
       setUser(newSession.user);
