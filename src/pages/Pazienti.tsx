@@ -74,11 +74,13 @@ export function Pazienti({ operatore }: Props) {
   // ── Load ──
   const loadPazienti = useCallback(async () => {
     setLoading(true)
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('pazienti')
       .select('*')
       .eq('archiviato', false)
       .order('cognome')
+    console.log('[loadPazienti]', { count: data?.length, error })
+    if (error) { console.error('loadPazienti ERROR:', error); setLoading(false); return }
     setPazienti(data ?? [])
     setLoading(false)
   }, [])
