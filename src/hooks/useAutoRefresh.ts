@@ -1,36 +1,17 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import { supabase } from '@/lib/supabase'
 
+/**
+ * Ricarica i dati SOLO al cambio di pathname.
+ * Non fa polling, non fa refreshSession, non ascolta visibilitychange.
+ * Il token Supabase si auto-refresha già (autoRefreshToken: true in supabase.ts).
+ */
 export function useAutoRefresh(reloadFn: () => void | Promise<void>) {
   const location = useLocation()
+  const fnRef = useRef(reloadFn)
+  fnRef.current = reloadFn
 
-  // Reload al cambio pagina
   useEffect(() => {
-    reloadFn()
+    fnRef.current()
   }, [location.pathname])
-
-  // Reload quando tab torna attiva
-  useEffect(() => {
-    const handler = async () => {
-      if (document.visibilityState === 'visible') {
-        try { await supabase.auth.refreshSession() } catch {}
-        reloadFn()
-      }
-    }
-    document.addEventListener('visibilitychange', handler)
-    window.addEventListener('focus', handler)
-    return () => {
-      document.removeEventListener('visibilitychange', handler)
-      window.removeEventListener('focus', handler)
-    }
-  }, [reloadFn])
-
-  // Polling ogni 10 secondi se tab visibile
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (document.visibilityState === 'visible') reloadFn()
-    }, 10 * 1000)
-    return () => clearInterval(id)
-  }, [reloadFn])
 }
