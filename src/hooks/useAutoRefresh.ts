@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
+import { supabase } from '@/lib/supabase'
 
 export function useAutoRefresh(reloadFn: () => void | Promise<void>) {
   const location = useLocation()
@@ -9,8 +10,12 @@ export function useAutoRefresh(reloadFn: () => void | Promise<void>) {
   }, [location.pathname])
 
   useEffect(() => {
-    const handler = () => {
-      if (document.visibilityState === 'visible') reloadFn()
+    const handler = async () => {
+      if (document.visibilityState === 'visible') {
+        // Forza refresh sessione PRIMA di ricaricare
+        try { await supabase.auth.refreshSession() } catch {}
+        reloadFn()
+      }
     }
     document.addEventListener('visibilitychange', handler)
     window.addEventListener('focus', handler)
