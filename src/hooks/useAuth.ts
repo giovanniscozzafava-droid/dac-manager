@@ -53,18 +53,23 @@ export function useAuth() {
 
     init();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
-      if (!session?.user?.email) {
+      // TOKEN_REFRESHED non deve ri-renderizzare tutta l'app: aggiorniamo solo session
+      if (event === 'TOKEN_REFRESHED') {
+        setSession(newSession);
+        return;
+      }
+      if (!newSession?.user?.email) {
         setSession(null);
         setUser(null);
         setOperatore(null);
         setAuthError('');
         return;
       }
-      const op = await matchOperatore(session.user.email);
-      setSession(session);
-      setUser(session.user);
+      const op = await matchOperatore(newSession.user.email);
+      setSession(newSession);
+      setUser(newSession.user);
       setOperatore(op);
       if (!op) setAuthError('Account non associato a nessun operatore.');
     });
