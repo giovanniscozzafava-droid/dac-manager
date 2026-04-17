@@ -15,6 +15,7 @@ interface BugReport {
   descrizione: string | null
   pagina: string | null
   operatore_nome: string | null
+  operatore_email: string | null
   stato: string
   note_admin: string | null
   created_at: string
