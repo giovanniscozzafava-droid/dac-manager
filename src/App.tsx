@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import LoginSplash from './components/LoginSplash';
+import { DevicePreview } from './components/DevicePreview';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BugReports } from './pages/BugReports';
 import { PresidioPage } from './pages/PresidioPage';
@@ -53,6 +54,7 @@ export default function App() {
         onLogout={logout}
         onLogoutFull={logout}
       >
+        <DevicePreview isAdmin={isAdmin}>
         <Routes>
           <Route path="/" element={<Dashboard operatore={o} />} />
           <Route path="/agenda" element={<Agenda operatore={o} />} />
@@ -71,6 +73,7 @@ export default function App() {
           <Route path="/presidio" element={<PresidioPage operatore={o} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </DevicePreview>
       </Layout>
     </BrowserRouter>
     </ErrorBoundary>
