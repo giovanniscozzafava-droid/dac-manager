@@ -18,6 +18,7 @@ interface Articolo {
   scadenza: string | null
   lotto: string | null
   fornitore_id: string | null
+  prezzo_unitario: number
   note: string | null
   attivo: boolean
   created_at: string
@@ -97,7 +98,6 @@ export function PresidioPage({ operatore }: Props) {
           </button>
         </div>
 
-        {/* Alert badges */}
         {(alertsCount.sotto_scorta + alertsCount.in_scadenza + alertsCount.scaduti) > 0 && (
           <div className="flex gap-2 mt-3 flex-wrap">
             {alertsCount.scaduti > 0 && (
@@ -132,7 +132,7 @@ export function PresidioPage({ operatore }: Props) {
           {filterAlert !== 'tutti' && (
             <button onClick={() => setFilterAlert('tutti')}
               className="px-3 py-2 rounded-lg text-xs font-semibold bg-white/5 text-dac-gray-300 hover:bg-white/10">
-              ✕ Rimuovi filtro
+              Rimuovi filtro
             </button>
           )}
         </div>
@@ -188,6 +188,9 @@ function ArticoloCard({ articolo, fornitore, onScarico, onEdit, onHistory }:
             <span className="text-[9px] font-semibold uppercase px-1.5 py-0.5 rounded-full bg-white/5 text-dac-gray-400">{articolo.categoria}</span>
           </div>
           {articolo.lotto && <div className="text-[10px] text-dac-gray-500">Lotto: {articolo.lotto}</div>}
+          {articolo.prezzo_unitario > 0 && (
+            <div className="text-[10px] text-dac-green">€ {articolo.prezzo_unitario.toFixed(2)}/{articolo.unita_misura}</div>
+          )}
         </div>
         <button onClick={onEdit} className="p-1 rounded hover:bg-white/5 text-dac-gray-400 flex-shrink-0">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -226,7 +229,7 @@ function ArticoloCard({ articolo, fornitore, onScarico, onEdit, onHistory }:
         </div>
       </div>
 
-      {fornitore && <div className="text-[10px] text-dac-gray-500 mb-2">🏭 {fornitore.nome}</div>}
+      {fornitore && <div className="text-[10px] text-dac-gray-500 mb-2">{fornitore.nome}</div>}
       {articolo.note && <div className="text-[10px] text-dac-gray-400 italic mb-2 line-clamp-2">{articolo.note}</div>}
 
       <div className="flex gap-1.5">
@@ -254,8 +257,19 @@ function ArticoloForm({ articolo, fornitori, onClose, onSaved }:
   const [scadenza, setScadenza] = useState(articolo?.scadenza ?? '')
   const [lotto, setLotto] = useState(articolo?.lotto ?? '')
   const [fornitoreId, setFornitoreId] = useState(articolo?.fornitore_id ?? '')
+  const [prezzoUnitario, setPrezzoUnitario] = useState<number | ''>(articolo?.prezzo_unitario ?? '')
   const [note, setNote] = useState(articolo?.note ?? '')
   const [saving, setSaving] = useState(false)
+
+  // Helper calcolo prezzo unitario da confezione
+  const [prezzoConfezione, setPrezzoConfezione] = useState<number | ''>('')
+  const [pezziPerConfezione, setPezziPerConfezione] = useState<number | ''>('')
+
+  function calcolaPrezzoUnitario() {
+    if (typeof prezzoConfezione === 'number' && typeof pezziPerConfezione === 'number' && pezziPerConfezione > 0) {
+      setPrezzoUnitario(Number((prezzoConfezione / pezziPerConfezione).toFixed(4)))
+    }
+  }
 
   async function salva() {
     if (!nome.trim()) { alert('Nome obbligatorio'); return }
@@ -269,6 +283,7 @@ function ArticoloForm({ articolo, fornitori, onClose, onSaved }:
       scadenza: scadenza || null,
       lotto: lotto.trim() || null,
       fornitore_id: fornitoreId || null,
+      prezzo_unitario: Number(prezzoUnitario) || 0,
       note: note.trim() || null,
       updated_at: new Date().toISOString(),
     }
@@ -282,7 +297,7 @@ function ArticoloForm({ articolo, fornitori, onClose, onSaved }:
 
   async function elimina() {
     if (!articolo) return
-    if (!confirm('Eliminare questo articolo? L\'operazione è reversibile.')) return
+    if (!confirm('Eliminare questo articolo?')) return
     await supabase.from('inventario_presidio').update({ attivo: false }).eq('id', articolo.id)
     onSaved()
   }
@@ -291,7 +306,7 @@ function ArticoloForm({ articolo, fornitori, onClose, onSaved }:
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-dac-card border border-white/10 rounded-2xl w-full max-w-lg mx-4 shadow-2xl max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 sticky top-0 bg-dac-card z-10">
-          <h3 className="font-display font-bold text-white">{articolo ? '✏️ Modifica' : '➕ Nuovo'} Articolo</h3>
+          <h3 className="font-display font-bold text-white">{articolo ? 'Modifica' : 'Nuovo'} Articolo</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-dac-gray-400"><X size={18} /></button>
         </div>
 
@@ -324,6 +339,29 @@ function ArticoloForm({ articolo, fornitori, onClose, onSaved }:
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Scorta Minima</label>
               <input type="number" value={scortaMin} onChange={e => setScortaMin(e.target.value === '' ? '' : Number(e.target.value))} className="input-field" min="0" step="0.01" />
+            </div>
+          </div>
+
+          {/* Prezzo acquisto: calcolatore da confezione */}
+          <div className="rounded-xl border border-dac-green/20 bg-dac-green/5 p-3 space-y-2">
+            <div className="text-[10px] font-semibold uppercase tracking-wider text-dac-green">Prezzo di acquisto</div>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-[9px] text-dac-gray-400 mb-0.5">€ confezione</label>
+                <input type="number" value={prezzoConfezione} onChange={e => setPrezzoConfezione(e.target.value === '' ? '' : Number(e.target.value))} className="input-field" placeholder="es. 20.00" step="0.01" />
+              </div>
+              <div>
+                <label className="block text-[9px] text-dac-gray-400 mb-0.5">Pezzi/confezione</label>
+                <input type="number" value={pezziPerConfezione} onChange={e => setPezziPerConfezione(e.target.value === '' ? '' : Number(e.target.value))} className="input-field" placeholder="es. 100" />
+              </div>
+            </div>
+            <button type="button" onClick={calcolaPrezzoUnitario}
+              className="w-full py-1.5 rounded-lg text-[10px] font-semibold bg-dac-green/15 text-dac-green hover:bg-dac-green/25">
+              Calcola prezzo unitario
+            </button>
+            <div>
+              <label className="block text-[9px] text-dac-gray-400 mb-0.5">€ per {unita} (modificabile)</label>
+              <input type="number" value={prezzoUnitario} onChange={e => setPrezzoUnitario(e.target.value === '' ? '' : Number(e.target.value))} className="input-field font-bold text-dac-green" step="0.0001" placeholder="0.00" />
             </div>
           </div>
 
@@ -379,6 +417,8 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
   const [pazienteSearch, setPazienteSearch] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const costoTotale = quantita * articolo.prezzo_unitario
+
   useEffect(() => {
     if (pazienteSearch.length < 2) { setPazienti([]); return }
     const t = setTimeout(async () => {
@@ -397,26 +437,44 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
     setSaving(true)
 
     const pazSelezionato = pazienti.find(p => p.id === pazienteId)
+    const costo = Number((quantita * articolo.prezzo_unitario).toFixed(2))
 
-    const [{ error: e1 }, { error: e2 }] = await Promise.all([
-      supabase.from('inventario_presidio').update({
-        quantita: articolo.quantita - quantita,
-        updated_at: new Date().toISOString()
-      }).eq('id', articolo.id),
-      supabase.from('presidio_scarichi').insert({
-        articolo_id: articolo.id,
-        articolo_nome: articolo.nome,
-        quantita,
-        motivo: motivo.trim() || null,
-        paziente_id: pazienteId || null,
-        paziente_nome: pazSelezionato ? `${pazSelezionato.cognome} ${pazSelezionato.nome}` : null,
+    // 1. Aggiorna quantità articolo
+    const { error: e1 } = await supabase.from('inventario_presidio').update({
+      quantita: articolo.quantita - quantita,
+      updated_at: new Date().toISOString()
+    }).eq('id', articolo.id)
+
+    // 2. Registra scarico
+    const { error: e2 } = await supabase.from('presidio_scarichi').insert({
+      articolo_id: articolo.id,
+      articolo_nome: articolo.nome,
+      quantita,
+      motivo: motivo.trim() || null,
+      paziente_id: pazienteId || null,
+      paziente_nome: pazSelezionato ? `${pazSelezionato.cognome} ${pazSelezionato.nome}` : null,
+      operatore_nome: operatore.nome,
+      operatore_email: operatore.email,
+      costo_totale: costo,
+    })
+
+    // 3. Se c'è un costo > 0, registra automaticamente in costi
+    let e3: any = null
+    if (costo > 0) {
+      const descrizione = `Consumo Presidio - ${articolo.nome} (${quantita} ${articolo.unita_misura})${pazSelezionato ? ` - ${pazSelezionato.cognome} ${pazSelezionato.nome}` : ''}${motivo ? ` - ${motivo}` : ''}`
+      const res = await supabase.from('costi').insert({
+        data: new Date().toISOString().split('T')[0],
+        categoria: 'Consumo Presidio',
+        descrizione,
+        importo: costo,
         operatore_nome: operatore.nome,
-        operatore_email: operatore.email,
       })
-    ])
+      e3 = res.error
+    }
 
     setSaving(false)
     if (e1 || e2) { alert('Errore: ' + (e1?.message || e2?.message)); return }
+    if (e3) { alert('Scarico OK ma errore registrazione costo: ' + e3.message) }
     onSaved()
   }
 
@@ -424,14 +482,22 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-dac-card border border-white/10 rounded-2xl w-full max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-          <h3 className="font-display font-bold text-white">➖ Scarica {articolo.nome}</h3>
+          <h3 className="font-display font-bold text-white">Scarica {articolo.nome}</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-dac-gray-400"><X size={18} /></button>
         </div>
 
         <div className="p-5 space-y-3">
-          <div className="rounded-lg bg-white/3 p-3 text-center">
-            <div className="text-[10px] text-dac-gray-400 uppercase mb-1">Disponibili</div>
-            <div className="text-2xl font-bold text-white">{articolo.quantita} <span className="text-sm text-dac-gray-400">{articolo.unita_misura}</span></div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-white/3 p-3 text-center">
+              <div className="text-[10px] text-dac-gray-400 uppercase mb-1">Disponibili</div>
+              <div className="text-xl font-bold text-white">{articolo.quantita}</div>
+              <div className="text-[9px] text-dac-gray-500">{articolo.unita_misura}</div>
+            </div>
+            <div className="rounded-lg bg-dac-green/5 p-3 text-center">
+              <div className="text-[10px] text-dac-gray-400 uppercase mb-1">Prezzo unit.</div>
+              <div className="text-xl font-bold text-dac-green">€ {articolo.prezzo_unitario.toFixed(2)}</div>
+              <div className="text-[9px] text-dac-gray-500">per {articolo.unita_misura}</div>
+            </div>
           </div>
 
           <div>
@@ -439,9 +505,16 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
             <input type="number" value={quantita} onChange={e => setQuantita(Number(e.target.value))} className="input-field text-2xl font-bold text-center" min="0.01" max={articolo.quantita} step="0.01" autoFocus />
           </div>
 
+          {articolo.prezzo_unitario > 0 && (
+            <div className="rounded-lg bg-dac-green/10 border border-dac-green/20 p-3 text-center">
+              <div className="text-[10px] text-dac-gray-400 uppercase mb-1">Costo operazione (verrà registrato nei costi)</div>
+              <div className="text-2xl font-bold text-dac-green">€ {costoTotale.toFixed(2)}</div>
+            </div>
+          )}
+
           <div>
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Motivo (opzionale)</label>
-            <input type="text" value={motivo} onChange={e => setMotivo(e.target.value)} className="input-field" placeholder="Es. Medicazione ferita, consumo interno..." />
+            <input type="text" value={motivo} onChange={e => setMotivo(e.target.value)} className="input-field" placeholder="Es. Medicazione ferita" />
           </div>
 
           <div>
@@ -481,28 +554,47 @@ function HistoryModal({ articolo, onClose }: { articolo: Articolo; onClose: () =
       .then(({ data }) => { setLog(data ?? []); setLoading(false) })
   }, [articolo.id])
 
+  const totaleCosto = log.reduce((s, l) => s + (Number(l.costo_totale) || 0), 0)
+  const totaleQuantita = log.reduce((s, l) => s + (Number(l.quantita) || 0), 0)
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
       <div className="bg-dac-card border border-white/10 rounded-2xl w-full max-w-lg mx-4 shadow-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
-          <h3 className="font-display font-bold text-white">📋 Storico {articolo.nome}</h3>
+          <h3 className="font-display font-bold text-white">Storico {articolo.nome}</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-dac-gray-400"><X size={18} /></button>
         </div>
 
+        {log.length > 0 && (
+          <div className="px-5 py-3 border-b border-white/5 grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-white/3 p-2 text-center">
+              <div className="text-[10px] text-dac-gray-400 uppercase">Totale scaricato</div>
+              <div className="text-lg font-bold text-white">{totaleQuantita} {articolo.unita_misura}</div>
+            </div>
+            <div className="rounded-lg bg-dac-green/5 p-2 text-center">
+              <div className="text-[10px] text-dac-gray-400 uppercase">Costo totale</div>
+              <div className="text-lg font-bold text-dac-green">€ {totaleCosto.toFixed(2)}</div>
+            </div>
+          </div>
+        )}
+
         <div className="p-5 overflow-auto flex-1">
           {loading ? <div className="text-center text-dac-gray-500 text-sm">Caricamento...</div>
-          : log.length === 0 ? <div className="text-center text-dac-gray-500 text-sm py-8">Nessun movimento registrato</div>
+          : log.length === 0 ? <div className="text-center text-dac-gray-500 text-sm py-8">Nessun movimento</div>
           : (
             <div className="space-y-2">
               {log.map(l => (
                 <div key={l.id} className="rounded-lg bg-white/3 p-3">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-sm font-semibold text-dac-red">- {l.quantita} {articolo.unita_misura}</span>
-                    <span className="text-[10px] text-dac-gray-500">{format(new Date(l.created_at), 'dd/MM/yyyy HH:mm', { locale: it })}</span>
+                    <div className="flex items-center gap-2">
+                      {l.costo_totale > 0 && <span className="text-xs font-semibold text-dac-green">€ {Number(l.costo_totale).toFixed(2)}</span>}
+                      <span className="text-[10px] text-dac-gray-500">{format(new Date(l.created_at), 'dd/MM/yyyy HH:mm', { locale: it })}</span>
+                    </div>
                   </div>
                   <div className="text-[11px] text-dac-gray-300">
-                    {l.operatore_nome && <span>👤 {l.operatore_nome}</span>}
-                    {l.paziente_nome && <span className="ml-2">• 🧑 {l.paziente_nome}</span>}
+                    {l.operatore_nome && <span>{l.operatore_nome}</span>}
+                    {l.paziente_nome && <span className="ml-2">- {l.paziente_nome}</span>}
                   </div>
                   {l.motivo && <div className="text-[11px] text-dac-gray-400 italic mt-1">{l.motivo}</div>}
                 </div>
