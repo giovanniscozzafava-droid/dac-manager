@@ -18,6 +18,7 @@ const NAV_ITEMS = [
   { path: '/task', icon: '📋', label: 'Task' },
   { path: '/anamnesi', icon: '🩺', label: 'Anamnesi' },
   { path: '/pacchetti', icon: '📦', label: 'Pacchetti' },
+  { path: '/bug-reports', icon: '🐛', label: 'Segnala Bug' },
   { path: '/specialisti', icon: '👨‍⚕️', label: 'Specialisti', adminOnly: true },
   { path: '/inventario', icon: '🧪', label: 'Inventario', adminOnly: true },
   { path: '/parafarmacia', icon: '🏪', label: 'Parafarmacia', adminOnly: true },

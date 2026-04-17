@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import LoginSplash from './components/LoginSplash';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { BugReports } from './pages/BugReports';
 
 import { Dashboard } from './pages/Dashboard';
 import { Agenda } from './pages/Agenda';
@@ -41,6 +43,7 @@ export default function App() {
   const o = operatore;
 
   return (
+    <ErrorBoundary operatoreNome={o.nome} operatoreEmail={o.email}>
     <BrowserRouter>
       <Layout
         operatore={o}
@@ -63,9 +66,11 @@ export default function App() {
           <Route path="/parafarmacia" element={isAdmin ? <ParafarmaciaPage operatore={o} /> : <Navigate to="/" replace />} />
           <Route path="/contabilita" element={isAdmin ? <ContabilitaPage operatore={o} /> : <Navigate to="/" replace />} />
           <Route path="/config" element={isAdmin ? <ConfigPage operatore={o} /> : <Navigate to="/" replace />} />
+          <Route path="/bug-reports" element={<BugReports operatore={o} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
