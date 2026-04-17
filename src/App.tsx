@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 import LoginSplash from './components/LoginSplash';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { BugReports } from './pages/BugReports';
+import { PresidioPage } from './pages/PresidioPage';
 
 import { Dashboard } from './pages/Dashboard';
 import { Agenda } from './pages/Agenda';
@@ -67,6 +68,7 @@ export default function App() {
           <Route path="/contabilita" element={isAdmin ? <ContabilitaPage operatore={o} /> : <Navigate to="/" replace />} />
           <Route path="/config" element={isAdmin ? <ConfigPage operatore={o} /> : <Navigate to="/" replace />} />
           <Route path="/bug-reports" element={<BugReports operatore={o} />} />
+          <Route path="/presidio" element={<PresidioPage operatore={o} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>
