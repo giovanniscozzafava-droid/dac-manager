@@ -5,14 +5,15 @@ import { supabase } from '@/lib/supabase'
 export function useAutoRefresh(reloadFn: () => void | Promise<void>) {
   const location = useLocation()
 
+  // Reload al cambio pagina
   useEffect(() => {
     reloadFn()
   }, [location.pathname])
 
+  // Reload quando tab torna attiva
   useEffect(() => {
     const handler = async () => {
       if (document.visibilityState === 'visible') {
-        // Forza refresh sessione PRIMA di ricaricare
         try { await supabase.auth.refreshSession() } catch {}
         reloadFn()
       }
@@ -23,5 +24,13 @@ export function useAutoRefresh(reloadFn: () => void | Promise<void>) {
       document.removeEventListener('visibilitychange', handler)
       window.removeEventListener('focus', handler)
     }
+  }, [reloadFn])
+
+  // Polling ogni 10 secondi se tab visibile
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (document.visibilityState === 'visible') reloadFn()
+    }, 10 * 1000)
+    return () => clearInterval(id)
   }, [reloadFn])
 }
