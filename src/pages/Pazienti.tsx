@@ -85,20 +85,7 @@ export function Pazienti({ operatore }: Props) {
     setLoading(false)
   }, [])
 
-  useEffect(() => {
-    let mounted = true
-    async function doLoad() {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('pazienti').select('*').eq('archiviato', false).order('cognome')
-      console.log('[Pazienti mount]', { count: data?.length, error })
-      if (!mounted) return
-      if (!error) setPazienti(data ?? [])
-      setLoading(false)
-    }
-    doLoad()
-    return () => { mounted = false }
-  }, [])
+  
   useAutoRefresh(loadPazienti)
 
   // ── Filtri ──
