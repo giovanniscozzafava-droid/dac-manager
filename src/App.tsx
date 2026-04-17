@@ -54,15 +54,15 @@ export default function App() {
           <Route path="/agenda" element={<Agenda operatore={o} />} />
           <Route path="/pazienti" element={<Pazienti operatore={o} />} />
           <Route path="/task" element={<TaskManager operatore={o} />} />
-          <Route path="/inventario" element={<Inventario operatore={o} />} />
-          <Route path="/specialisti" element={<Specialisti operatore={o} />} />
+          <Route path="/inventario" element={isAdmin ? <Inventario operatore={o} /> : <Navigate to="/" replace />} />
+          <Route path="/specialisti" element={isAdmin ? <Specialisti operatore={o} /> : <Navigate to="/" replace />} />
           <Route path="/anamnesi" element={<AnamnesiComp operatore={o} />} />
           <Route path="/pacchetti" element={<PacchettiPage operatore={o} />} />
-          <Route path="/ricavi" element={<RicaviPage operatore={o} />} />
-          <Route path="/costi" element={<CostiPage operatore={o} />} />
-          <Route path="/parafarmacia" element={<ParafarmaciaPage operatore={o} />} />
-          <Route path="/contabilita" element={<ContabilitaPage operatore={o} />} />
-          <Route path="/config" element={<ConfigPage operatore={o} />} />
+          <Route path="/ricavi" element={isAdmin ? <RicaviPage operatore={o} /> : <Navigate to="/" replace />} />
+          <Route path="/costi" element={isAdmin ? <CostiPage operatore={o} /> : <Navigate to="/" replace />} />
+          <Route path="/parafarmacia" element={isAdmin ? <ParafarmaciaPage operatore={o} /> : <Navigate to="/" replace />} />
+          <Route path="/contabilita" element={isAdmin ? <ContabilitaPage operatore={o} /> : <Navigate to="/" replace />} />
+          <Route path="/config" element={isAdmin ? <ConfigPage operatore={o} /> : <Navigate to="/" replace />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Layout>

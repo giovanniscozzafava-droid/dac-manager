@@ -10,9 +10,39 @@ export const supabase = createClient(
       detectSessionInUrl: true,
       persistSession: true,
       autoRefreshToken: true,
-      lock: async (name: string, acquireTimeout: number, fn: () => Promise<any>) => {
+      lock: async (_name: string, _acquireTimeout: number, fn: () => Promise<any>) => {
         return await fn();
       }
-    }
+    },
+    realtime: {
+      params: {
+        eventsPerSecond: 10,
+      },
+    },
+    global: {
+      headers: {
+        'x-client-info': 'dac-manager-web',
+      },
+    },
   }
 )
+
+// Auto-refresh della sessione ogni 30 minuti
+if (typeof window !== 'undefined') {
+  setInterval(async () => {
+    const { data } = await supabase.auth.getSession()
+    if (data.session) {
+      await supabase.auth.refreshSession()
+    }
+  }, 30 * 60 * 1000)
+
+  // Re-check quando la tab torna attiva
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible') {
+      const { data } = await supabase.auth.getSession()
+      if (data.session) {
+        await supabase.auth.refreshSession()
+      }
+    }
+  })
+}

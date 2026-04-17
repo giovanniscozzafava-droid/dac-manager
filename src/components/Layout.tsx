@@ -18,14 +18,14 @@ const NAV_ITEMS = [
   { path: '/task', icon: '📋', label: 'Task' },
   { path: '/anamnesi', icon: '🩺', label: 'Anamnesi' },
   { path: '/pacchetti', icon: '📦', label: 'Pacchetti' },
-  { path: '/specialisti', icon: '👨‍⚕️', label: 'Specialisti' },
-  { path: '/inventario', icon: '🧪', label: 'Inventario' },
-  { path: '/parafarmacia', icon: '🏪', label: 'Parafarmacia' },
-  { divider: true, label: 'Contabilità' },
-  { path: '/ricavi', icon: '💰', label: 'Ricavi' },
-  { path: '/costi', icon: '📉', label: 'Costi' },
-  { path: '/contabilita', icon: '📊', label: 'Report' },
-  { divider: true, label: 'Sistema' },
+  { path: '/specialisti', icon: '👨‍⚕️', label: 'Specialisti', adminOnly: true },
+  { path: '/inventario', icon: '🧪', label: 'Inventario', adminOnly: true },
+  { path: '/parafarmacia', icon: '🏪', label: 'Parafarmacia', adminOnly: true },
+  { divider: true, label: 'Contabilità', adminOnly: true },
+  { path: '/ricavi', icon: '💰', label: 'Ricavi', adminOnly: true },
+  { path: '/costi', icon: '📉', label: 'Costi', adminOnly: true },
+  { path: '/contabilita', icon: '📊', label: 'Report', adminOnly: true },
+  { divider: true, label: 'Sistema', adminOnly: true },
   { path: '/config', icon: '⚙️', label: 'Configurazione', adminOnly: true },
 ];
 
@@ -65,6 +65,8 @@ export default function Layout({
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
           {NAV_ITEMS.map((item, i) => {
+            if (item.adminOnly && !isAdmin) return null;
+
             if (item.divider) {
               if (collapsed) return <div key={i} className="my-2 border-t border-slate-800" />;
               return (
@@ -76,8 +78,6 @@ export default function Layout({
                 </div>
               );
             }
-
-            if (item.adminOnly && !isAdmin) return null;
 
             const isActive = location.pathname === item.path;
 
