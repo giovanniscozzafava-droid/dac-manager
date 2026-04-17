@@ -111,3 +111,19 @@ textarea.input-field { resize: vertical; min-height: 60px; }
 @layer utilities {
   .text-balance { text-wrap: balance; }
 }
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.25s ease-out;
+}
+
+@keyframes slide-in-left {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+.animate-slide-in-left {
+  animation: slide-in-left 0.25s ease-out;
+}
