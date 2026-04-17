@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { ClipboardList, Plus, X, Check, Search, Edit3, Trash2, Send, Eye, Mail } from 'lucide-react'
@@ -41,6 +42,7 @@ export function AnamnesiPage({ operatore }: Props) {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useAutoRefresh(load)
 
   const filtered = items.filter(a => {
     if (search) {

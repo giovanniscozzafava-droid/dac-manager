@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { Stethoscope, Plus, X, Check, Edit3, Trash2, Calendar, DollarSign } from 'lucide-react'
@@ -36,6 +37,7 @@ export function Specialisti({ operatore }: Props) {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useAutoRefresh(load)
 
   function onSaved() { setShowFormSpec(false); setShowFormDisp(false); setShowFormReg(false); setEditSpec(null); load() }
 

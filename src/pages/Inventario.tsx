@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
 import {
   FlaskConical, Plus, X, Search, Check, AlertTriangle,
@@ -87,6 +88,7 @@ export function Inventario({ operatore }: Props) {
   }, [])
 
   useEffect(() => { loadItems() }, [loadItems])
+  useAutoRefresh(loadItems)
 
   const fornMap: Record<string, string> = {}
   fornitori.forEach(f => { fornMap[f.id] = f.nome })

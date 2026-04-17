@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
 import { Package, Plus, X, Check, Search, Edit3, Trash2 } from 'lucide-react'
 
@@ -41,6 +42,7 @@ export function PacchettiPage({ operatore }: Props) {
   }, [])
 
   useEffect(() => { load() }, [load])
+  useAutoRefresh(load)
 
   const filtered = items.filter(p => {
     if (filterStato && p.stato !== filterStato) return false

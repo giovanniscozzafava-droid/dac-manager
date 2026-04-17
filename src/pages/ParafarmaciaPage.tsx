@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format, subDays, addDays, isToday } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
@@ -76,6 +77,7 @@ function CassaTab({ operatore }: { operatore: Operatore }) {
   }, [data])
 
   useEffect(() => { load() }, [load])
+  useAutoRefresh(load)
 
   const entrate = items.filter(i => i.tipo === 'Entrata').reduce((s, i) => s + Number(i.importo), 0)
   const uscite = items.filter(i => i.tipo === 'Uscita').reduce((s, i) => s + Number(i.importo), 0)

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format, addDays, subDays, isToday, isBefore, startOfDay } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
@@ -89,6 +90,7 @@ export function Agenda({ operatore }: Props) {
   }, [dataStr])
 
   useEffect(() => { loadAppuntamenti() }, [loadAppuntamenti])
+  useAutoRefresh(loadAppuntamenti)
 
   // ── Realtime ──
   useEffect(() => {

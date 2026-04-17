@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
 import {
@@ -83,6 +84,7 @@ export function Pazienti({ operatore }: Props) {
   }, [])
 
   useEffect(() => { loadPazienti() }, [loadPazienti])
+  useAutoRefresh(loadPazienti)
 
   // ── Filtri ──
   useEffect(() => {

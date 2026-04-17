@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { it } from 'date-fns/locale'
 import { TrendingDown, Plus, X, Check, Search, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
@@ -29,6 +30,7 @@ export function CostiPage({ operatore }: Props) {
   }, [meseStr, fineStr])
 
   useEffect(() => { load() }, [load])
+  useAutoRefresh(load)
 
   const filtered = items.filter(c => {
     if (filterCat && c.categoria !== filterCat) return false

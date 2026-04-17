@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
+import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
 import {
   CheckSquare, Plus, X, Clock,
@@ -105,6 +106,7 @@ export function TaskManager({ operatore }: Props) {
   }, [isAdmin, operatore.nome])
 
   useEffect(() => { loadTasks() }, [loadTasks])
+  useAutoRefresh(loadTasks)
   useEffect(() => { supabase.from('operatori').select('id, nome, emoji, email').eq('attivo', true).order('nome').then(({ data }) => setOperatori(data ?? [])) }, [])
   useEffect(() => { const i = setInterval(() => setTick(t => t + 1), 30000); return () => clearInterval(i) }, [])
   useEffect(() => { const ch = supabase.channel('task-rt').on('postgres_changes', { event: '*', schema: 'public', table: 'task' }, () => loadTasks()).subscribe(); return () => { supabase.removeChannel(ch) } }, [loadTasks])
