@@ -38,7 +38,7 @@ export default function App() {
   }
 
   if (!operatore) {
-    return <LoginSplash onLogin={login} error={authError} />;
+    return <LoginSplash onLogin={login} authError={authError} />;
   }
 
   const o = operatore;
