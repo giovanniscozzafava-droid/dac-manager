@@ -107,9 +107,12 @@ export function useAuth() {
         return;
       }
 
-      // Nuovo utente: carica operatore
+      // Nuovo utente: carica operatore (con timeout: stesso problema lock Supabase del bug C)
       currentUserId = newSession.user.id;
-      const op = await matchOperatore(newSession.user.email);
+      const op = await withTimeout(matchOperatore(newSession.user.email), 6000, null);
+      // Forziamo loading=false anche qui per sicurezza (se l'init era in timeout)
+      clearTimeout(watchdog);
+      setLoading(false);
       setSession(newSession);
       setUser(newSession.user);
       setOperatore(op);
