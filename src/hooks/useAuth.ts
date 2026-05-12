@@ -36,14 +36,29 @@ export function useAuth() {
     let mounted = true;
     let currentUserId: string | null = null;
 
-    // Watchdog: se entro 8s non siamo usciti da loading, forziamo l'uscita.
-    // Risolve un blocco osservato (bug C): `supabase.auth.getSession()` può restare
-    // in pending indefinitamente per un lock orfano multi-tab non ripulito.
+    // Watchdog: se entro 8s non siamo usciti da loading, c'è un blocco
+    // (lock orfano Supabase, sessione corrotta, cache JS obsoleto).
+    // Auto-recovery: pulisce la sessione locale e ricarica la pagina.
+    // sessionStorage `dac-auth-recovery` evita loop infiniti di reload.
+    const RECOVERY_KEY = 'dac-auth-recovery';
     const watchdog = setTimeout(() => {
-      if (mounted) {
-        console.warn('[auth] watchdog: getSession bloccato, forzo loading=false');
+      if (!mounted) return;
+      const alreadyRecovered = (() => { try { return sessionStorage.getItem(RECOVERY_KEY) === '1'; } catch { return false; } })();
+      if (alreadyRecovered) {
+        console.warn('[auth] watchdog: già in recovery, mostro form login');
         setLoading(false);
+        return;
       }
+      console.warn('[auth] watchdog: ripulisco sessione e ricarico');
+      try { sessionStorage.setItem(RECOVERY_KEY, '1'); } catch {}
+      try { localStorage.removeItem('dac-auth'); } catch {}
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('lock:') || k.includes('dac-auth'))) localStorage.removeItem(k);
+        }
+      } catch {}
+      window.location.reload();
     }, 8000);
 
     const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
@@ -60,12 +75,17 @@ export function useAuth() {
           { data: { session: null } } as any
         );
         if (!session?.user?.email) {
-          if (mounted) { clearTimeout(watchdog); setLoading(false); }
+          if (mounted) {
+            clearTimeout(watchdog);
+            try { sessionStorage.removeItem(RECOVERY_KEY); } catch {}
+            setLoading(false);
+          }
           return;
         }
         const op = await withTimeout(matchOperatore(session.user.email), 6000, null);
         if (mounted) {
           currentUserId = session.user.id;
+          try { sessionStorage.removeItem(RECOVERY_KEY); } catch {}
           setSession(session);
           setUser(session.user);
           setOperatore(op);
