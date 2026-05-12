@@ -28,7 +28,7 @@ const COLONNE_AGENDA = [
 // Turni: M=mattina, P=pomeriggio, T=tutto, B=butera, X=assente
 // Indice: 0=Lun, 1=Mar, 2=Mer, 3=Gio, 4=Ven, 5=Sab
 const TURNI: Record<string, string[]> = {
-  'Teresa':      ['M','M','M','M','M','X'],
+  'Teresa':      ['T','T','T','T','T','X'],
   'V. Liuzzo':   ['P','T','T','P','P','X'],
   'Agnese':      ['P','T','T','P','P','X'],
   'Specialisti': ['T','T','T','T','T','X'],

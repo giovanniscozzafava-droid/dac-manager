@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
@@ -86,7 +87,12 @@ export function Specialisti({ operatore }: Props) {
                   </div>
                   <div className="flex gap-1">
                     <button onClick={() => { setEditSpec(s); setShowFormSpec(true) }} className="p-1.5 rounded-md hover:bg-white/10 text-dac-gray-400"><Edit3 size={13} /></button>
-                    <button onClick={async () => { if (confirm('Eliminare?')) { await supabase.from('specialisti').delete().eq('id', s.id); load() } }} className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={13} /></button>
+                    <button onClick={async () => {
+                      if (!confirm('Eliminare?')) return
+                      const { error } = await supabase.from('specialisti').delete().eq('id', s.id)
+                      if (!reportError('eliminazione specialista', error)) return
+                      load()
+                    }} className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={13} /></button>
                   </div>
                 </div>
                 <div className="space-y-1 text-xs text-dac-gray-400">
@@ -117,8 +123,12 @@ export function Specialisti({ operatore }: Props) {
                     <div className={`text-sm font-bold ${liberi > 0 ? 'text-dac-green' : 'text-dac-red'}`}>{liberi}/{d.slot_totali}</div>
                     <div className="text-[8px] text-dac-gray-500">liberi</div>
                   </div>
-                  <button onClick={async () => { if (confirm('Eliminare?')) { await supabase.from('disponibilita_specialisti').delete().eq('id', d.id); load() } }}
-                    className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={13} /></button>
+                  <button onClick={async () => {
+                    if (!confirm('Eliminare?')) return
+                    const { error } = await supabase.from('disponibilita_specialisti').delete().eq('id', d.id)
+                    if (!reportError('eliminazione disponibilità', error)) return
+                    load()
+                  }} className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={13} /></button>
                 </div>
               )
             })}
@@ -155,8 +165,12 @@ export function Specialisti({ operatore }: Props) {
                       <div className="text-xs font-bold text-white">€{Number(r.fatturato_lordo).toFixed(0)}</div>
                       <div className="text-[9px] text-dac-green">Strutt: €{Number(r.importo_struttura).toFixed(0)}</div>
                     </div>
-                    <button onClick={async () => { if (confirm('Eliminare?')) { await supabase.from('registro_specialisti').delete().eq('id', r.id); load() } }}
-                      className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={13} /></button>
+                    <button onClick={async () => {
+                      if (!confirm('Eliminare?')) return
+                      const { error } = await supabase.from('registro_specialisti').delete().eq('id', r.id)
+                      if (!reportError('eliminazione registro', error)) return
+                      load()
+                    }} className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={13} /></button>
                   </div>
                 )
               })}
@@ -189,9 +203,12 @@ function SpecialistaForm({ item, onClose, onSaved }: { item: Specialista | null;
     if (!nome.trim() || !spec.trim()) return
     setSaving(true)
     const payload = { nome: nome.trim(), specializzazione: spec.trim(), email: email || null, email_referti: emailReferti || null, telefono: tel || null, percentuale_struttura: perc / 100 }
-    if (item) await supabase.from('specialisti').update(payload).eq('id', item.id)
-    else await supabase.from('specialisti').insert({ ...payload, attivo: true })
-    setSaving(false); onSaved()
+    const { error } = item
+      ? await supabase.from('specialisti').update(payload).eq('id', item.id)
+      : await supabase.from('specialisti').insert({ ...payload, attivo: true })
+    setSaving(false)
+    if (!reportError(item ? 'modifica specialista' : 'creazione specialista', error)) return
+    onSaved()
   }
 
   return <Modal title={item ? '✏️ Modifica Specialista' : '➕ Nuovo Specialista'} onClose={onClose}>
@@ -218,8 +235,10 @@ function DispForm({ specialisti, onClose, onSaved }: { specialisti: Specialista[
   async function salva() {
     if (!specId) return
     setSaving(true)
-    await supabase.from('disponibilita_specialisti').insert({ specialista_id: specId, data, ora_inizio: inizio + ':00', ora_fine: fine + ':00', slot_totali: slots, slot_prenotati: 0 })
-    setSaving(false); onSaved()
+    const { error } = await supabase.from('disponibilita_specialisti').insert({ specialista_id: specId, data, ora_inizio: inizio + ':00', ora_fine: fine + ':00', slot_totali: slots, slot_prenotati: 0 })
+    setSaving(false)
+    if (!reportError('creazione disponibilità', error)) return
+    onSaved()
   }
 
   return <Modal title="🗓️ Nuova Disponibilità" onClose={onClose}>
@@ -248,8 +267,10 @@ function RegForm({ specialisti, onClose, onSaved }: { specialisti: Specialista[]
   async function salva() {
     if (!specId || !servizio.trim()) return
     setSaving(true)
-    await supabase.from('registro_specialisti').insert({ specialista_id: specId, data, servizio_nome: servizio.trim(), n_visite: nVisite, fatturato_lordo: fatturato, percentuale_struttura: perc, incassato })
-    setSaving(false); onSaved()
+    const { error } = await supabase.from('registro_specialisti').insert({ specialista_id: specId, data, servizio_nome: servizio.trim(), n_visite: nVisite, fatturato_lordo: fatturato, percentuale_struttura: perc, incassato })
+    setSaving(false)
+    if (!reportError('registrazione visita', error)) return
+    onSaved()
   }
 
   return <Modal title="💰 Registra Visita" onClose={onClose}>

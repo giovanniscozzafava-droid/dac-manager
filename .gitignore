@@ -4,3 +4,16 @@ dist
 .env.local
 *.local
 .DS_Store
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/
+.env
+tests/.auth/
+scout-output/
+
+# Dev tools (one-shot scripts che leggono PGURL/credenziali env)
+scripts/

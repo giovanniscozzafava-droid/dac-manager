@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { Bug, Plus, X, Check, AlertCircle, CheckCircle, Clock, Download } from 'lucide-react'
+import { Bug, Plus, X, Check, AlertCircle, CheckCircle, Clock, Download, HelpCircle, ChevronDown } from 'lucide-react'
 
 interface Props { operatore: Operatore }
 
@@ -110,6 +110,7 @@ export function BugReports({ operatore }: Props) {
       </div>
 
       <div className="flex-1 overflow-auto p-4">
+        {!isAdmin && <HelpBanner />}
         {loading ? (
           <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <div key={i} className="h-20 rounded-lg bg-white/3 animate-pulse" />)}</div>
         ) : filtered.length === 0 ? (
@@ -236,65 +237,191 @@ function BugCard({ bug, isAdmin, onUpdate }: { bug: BugReport; isAdmin: boolean;
   )
 }
 
+function HelpBanner() {
+  const [open, setOpen] = useState(true)
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)}
+        className="mb-3 flex items-center gap-2 text-xs text-dac-accent hover:text-dac-accent/80">
+        <HelpCircle size={14} /> Come segnalare un bug?
+      </button>
+    )
+  }
+  return (
+    <div className="mb-4 rounded-xl border border-dac-accent/20 bg-dac-accent/5 p-4">
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div className="flex items-center gap-2">
+          <HelpCircle size={16} className="text-dac-accent" />
+          <h3 className="font-display font-bold text-white text-sm">Come segnalare un bug — guida rapida</h3>
+        </div>
+        <button onClick={() => setOpen(false)} className="text-dac-gray-400 hover:text-white">
+          <ChevronDown size={16} />
+        </button>
+      </div>
+      <div className="text-[12px] text-dac-gray-300 space-y-2 leading-relaxed">
+        <p>
+          Una segnalazione utile ci permette di sistemare il problema in poche ore invece che in giorni.
+          Non serve essere "tecnici": basta raccontare bene quello che ti è successo.
+        </p>
+        <p className="text-white font-semibold mt-2">Le 3 informazioni che ci servono SEMPRE:</p>
+        <ol className="list-decimal list-inside space-y-1 ml-1">
+          <li><strong className="text-white">Cosa stavi facendo</strong> — i passi che hai fatto prima del problema. Esempio: <em>"Stavo cercando di salvare un nuovo paziente, ho cliccato Registra"</em>.</li>
+          <li><strong className="text-white">Cosa ti aspettavi</strong> — il risultato che volevi. Esempio: <em>"Mi aspettavo che il paziente venisse salvato e tornassi alla lista"</em>.</li>
+          <li><strong className="text-white">Cosa è successo invece</strong> — quello che hai visto davvero. Esempio: <em>"Il bottone gira a vuoto, dopo 10 secondi torna disponibile ma il paziente non c'è nella lista"</em>.</li>
+        </ol>
+        <p className="mt-2">
+          Aiuta molto anche: <strong>messaggio di errore</strong> esatto (se c'è),
+          se il problema <strong>si ripete</strong> rifacendo gli stessi passi,
+          e un <strong>titolo</strong> chiaro come faresti con un'email.
+        </p>
+        <p className="text-[11px] text-dac-gray-400 italic mt-2">
+          Compila i campi del form: l'app aggiunge automaticamente data, pagina, browser, dimensione schermo.
+          Non devi pensarci tu.
+        </p>
+      </div>
+    </div>
+  )
+}
+
 function BugForm({ operatore, onClose, onSaved }: { operatore: Operatore; onClose: () => void; onSaved: () => void }) {
   const [titolo, setTitolo] = useState('')
-  const [descrizione, setDescrizione] = useState('')
+  const [cosaFacevo, setCosaFacevo] = useState('')
+  const [cosaMiAspettavo, setCosaMiAspettavo] = useState('')
+  const [cosaEAccaduto, setCosaEAccaduto] = useState('')
+  const [messaggioErrore, setMessaggioErrore] = useState('')
+  const [ripetibile, setRipetibile] = useState<'si' | 'no' | 'forse'>('forse')
   const [severita, setSeverita] = useState('medio')
   const [pagina, setPagina] = useState(window.location.pathname)
   const [saving, setSaving] = useState(false)
 
+  function descrizioneCombinata(): string {
+    const sezioni: string[] = []
+    if (cosaFacevo.trim())       sezioni.push(`📍 COSA STAVO FACENDO\n${cosaFacevo.trim()}`)
+    if (cosaMiAspettavo.trim())  sezioni.push(`🎯 COSA MI ASPETTAVO\n${cosaMiAspettavo.trim()}`)
+    if (cosaEAccaduto.trim())    sezioni.push(`💥 COSA È SUCCESSO INVECE\n${cosaEAccaduto.trim()}`)
+    if (messaggioErrore.trim())  sezioni.push(`⚠️ MESSAGGIO DI ERRORE\n${messaggioErrore.trim()}`)
+    sezioni.push(`🔁 SI RIPETE?\n${ripetibile === 'si' ? 'Sì, succede sempre rifacendo gli stessi passi' : ripetibile === 'no' ? 'No, è successo solo una volta' : 'Non lo so / non ho riprovato'}`)
+    sezioni.push(`🖥️ AMBIENTE\n• Schermo: ${window.innerWidth}×${window.innerHeight}px\n• Quando: ${new Date().toLocaleString('it-IT')}\n• Pagina: ${pagina}\n• Browser: ${navigator.userAgent}`)
+    return sezioni.join('\n\n')
+  }
+
   async function salva() {
-    if (!titolo.trim()) { alert('Titolo obbligatorio'); return }
+    if (!titolo.trim()) { alert('Per favore, scrivi un titolo breve (anche solo "Errore salvando paziente")'); return }
+    if (!cosaEAccaduto.trim()) { alert('Per favore, dicci almeno cosa è successo (anche una sola riga)'); return }
     setSaving(true)
     const { error } = await supabase.from('bug_reports').insert({
-      tipo: 'manuale', severita, titolo: titolo.trim(), descrizione: descrizione.trim() || null,
+      tipo: 'manuale', severita, titolo: titolo.trim(),
+      descrizione: descrizioneCombinata(),
       pagina, operatore_nome: operatore.nome, operatore_email: operatore.email,
       user_agent: navigator.userAgent, url: window.location.href, stato: 'aperto',
     })
     setSaving(false)
-    if (error) { alert('Errore: ' + error.message); return }
+    if (error) { alert('Errore nell\'invio: ' + error.message + '\n\nRiprova fra qualche secondo. Se persiste, scrivi a Giovanni.'); return }
     onSaved()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
-      <div className="bg-dac-card border border-white/10 rounded-2xl w-full max-w-lg mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-y-auto p-4" onClick={onClose}>
+      <div className="bg-dac-card border border-white/10 rounded-2xl w-full max-w-2xl my-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5 sticky top-0 bg-dac-card z-10">
           <h3 className="font-display font-bold text-white">🐛 Segnala un bug</h3>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/5 text-dac-gray-400"><X size={18} /></button>
         </div>
-        <div className="p-5 space-y-3">
-          <div className="px-3 py-2 rounded-lg bg-dac-accent/5 border border-dac-accent/10 text-[11px] text-dac-gray-300">
-            Descrivi il problema riscontrato. L'amministratore riceverà la segnalazione e interverrà al più presto.
+
+        <div className="p-5 space-y-4">
+          <div className="px-3 py-2 rounded-lg bg-dac-accent/5 border border-dac-accent/10 text-[12px] text-dac-gray-300">
+            Compila i campi che riesci. Più informazioni dai, più velocemente sistemiamo. Data, browser e schermo li aggiungiamo noi.
           </div>
+
+          {/* TITOLO */}
           <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Titolo *</label>
-            <input type="text" value={titolo} onChange={e => setTitolo(e.target.value)} className="input-field" placeholder="Es. Non riesco a salvare il paziente" autoFocus />
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">
+              Titolo breve <span className="text-dac-red">*</span>
+            </label>
+            <input type="text" value={titolo} onChange={e => setTitolo(e.target.value)} className="input-field"
+              placeholder={`Es. "Non riesco a salvare il paziente" o "Il PDF dell'anamnesi è vuoto"`} autoFocus />
+            <div className="text-[10px] text-dac-gray-500 mt-1">Come faresti con l'oggetto di un'email — corto e diretto.</div>
           </div>
+
+          {/* COSA STAVO FACENDO */}
           <div>
-            <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Descrizione dettagliata</label>
-            <textarea value={descrizione} onChange={e => setDescrizione(e.target.value)} className="input-field resize-none" rows={5}
-              placeholder="Cosa stavi facendo? Cosa ti aspettavi? Cosa è successo invece?" />
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">
+              📍 Cosa stavi facendo?
+            </label>
+            <textarea value={cosaFacevo} onChange={e => setCosaFacevo(e.target.value)} className="input-field resize-none" rows={2}
+              placeholder='Es. "Ho aperto Pazienti, ho cliccato Nuovo Paziente, ho compilato cognome e nome, poi Registra"' />
+            <div className="text-[10px] text-dac-gray-500 mt-1">I passi che hai fatto, in ordine. Anche solo "ho cliccato X".</div>
           </div>
+
+          {/* COSA MI ASPETTAVO */}
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">
+              🎯 Cosa ti aspettavi che succedesse?
+            </label>
+            <textarea value={cosaMiAspettavo} onChange={e => setCosaMiAspettavo(e.target.value)} className="input-field resize-none" rows={2}
+              placeholder='Es. "Mi aspettavo che il paziente venisse salvato e apparisse nella lista"' />
+          </div>
+
+          {/* COSA È SUCCESSO INVECE */}
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">
+              💥 Cosa è successo invece? <span className="text-dac-red">*</span>
+            </label>
+            <textarea value={cosaEAccaduto} onChange={e => setCosaEAccaduto(e.target.value)} className="input-field resize-none" rows={3}
+              placeholder={`Es. "Il bottone Registra è rimasto a girare, dopo un po' è tornato disponibile ma il paziente non si vede da nessuna parte"`} />
+          </div>
+
+          {/* MESSAGGIO DI ERRORE */}
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">
+              ⚠️ C'è un messaggio di errore? (opzionale)
+            </label>
+            <textarea value={messaggioErrore} onChange={e => setMessaggioErrore(e.target.value)} className="input-field resize-none" rows={2}
+              placeholder={`Se è apparso un popup rosso o un avviso, copia il testo qui. Se non c'è, lascia vuoto.`} />
+          </div>
+
+          {/* SI RIPETE? */}
+          <div>
+            <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-2">
+              🔁 Si ripete se rifai gli stessi passi?
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { v: 'si', l: 'Sì, sempre', emoji: '🔴' },
+                { v: 'forse', l: 'Non lo so', emoji: '🟡' },
+                { v: 'no', l: 'No, una volta', emoji: '🟢' },
+              ] as const).map(o => (
+                <button key={o.v} type="button" onClick={() => setRipetibile(o.v)}
+                  className={`py-2 rounded-lg text-xs font-semibold border transition-colors ${ripetibile === o.v ? 'bg-dac-accent/15 border-dac-accent text-white' : 'bg-white/3 border-white/5 text-dac-gray-300 hover:bg-white/5'}`}>
+                  {o.emoji} {o.l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* GRAVITÀ + PAGINA */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Gravità</label>
               <select value={severita} onChange={e => setSeverita(e.target.value)} className="input-field">
-                <option value="basso">🟢 Basso (fastidio)</option>
-                <option value="medio">🟡 Medio (limitante)</option>
-                <option value="grave">🟠 Grave (blocca lavoro)</option>
+                <option value="basso">🟢 Basso (fastidio, posso lavorare)</option>
+                <option value="medio">🟡 Medio (mi rallenta)</option>
+                <option value="grave">🟠 Grave (non riesco a fare quel pezzo di lavoro)</option>
                 <option value="critico">🔴 Critico (sistema inutilizzabile)</option>
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Pagina</label>
+              <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">
+                Pagina <span className="text-dac-gray-600">(auto)</span>
+              </label>
               <input type="text" value={pagina} onChange={e => setPagina(e.target.value)} className="input-field" />
             </div>
           </div>
         </div>
-        <div className="flex gap-2 px-5 py-4 border-t border-white/5">
+
+        <div className="flex gap-2 px-5 py-4 border-t border-white/5 sticky bottom-0 bg-dac-card">
           <button onClick={onClose} className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-white/5 text-dac-gray-300 hover:bg-white/10">Annulla</button>
-          <button onClick={salva} disabled={saving || !titolo.trim()}
+          <button onClick={salva} disabled={saving || !titolo.trim() || !cosaEAccaduto.trim()}
             className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-dac-orange text-white hover:opacity-90 disabled:opacity-30 flex items-center justify-center gap-2">
             {saving ? <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><Check size={14} /> Invia segnalazione</>}
           </button>

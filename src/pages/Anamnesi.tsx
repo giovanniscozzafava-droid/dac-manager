@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
@@ -171,7 +172,7 @@ function AnamnesiForm({ operatore, specialistiLista, onClose, onSaved }: { opera
     if (!pazNome || !specialista) { alert('Paziente e specialista obbligatori'); return }
     setSaving(true)
     const codice = 'ANA-' + format(new Date(), 'yyMMddHHmmss')
-    await supabase.from('anamnesi').insert({
+    const { error: insErr } = await supabase.from('anamnesi').insert({
       codice, paziente_id: selPaz?.id ?? null, paziente_nome: pazNome, specialista,
       patologie: patologie || null, allergie: allergie || null, farmaci: farmaci || null,
       interventi_pregressi: interventi || null,
@@ -184,7 +185,9 @@ function AnamnesiForm({ operatore, specialistiLista, onClose, onSaved }: { opera
       motivo_visita: motivo || null, note_infermiera: noteInf || null,
       stato: 'Compilata', email_inviata: false,
     })
-    setSaving(false); onSaved()
+    setSaving(false)
+    if (!reportError('salvataggio anamnesi', insErr)) return
+    onSaved()
   }
 
   const TABS = [
@@ -377,7 +380,12 @@ function AnamnesiDetail({ item: a, onClose, onDeleted, onReload }: { item: Anamn
 
         <div className="p-4 border-t border-white/5 space-y-2">
           <InviaEmailButton anamnesi={a} onReload={onReload} />
-          <button onClick={async () => { if (confirm('Eliminare?')) { await supabase.from('anamnesi').delete().eq('id', a.id); onDeleted() } }}
+          <button onClick={async () => {
+            if (!confirm('Eliminare?')) return
+            const { error } = await supabase.from('anamnesi').delete().eq('id', a.id)
+            if (!reportError('eliminazione anamnesi', error)) return
+            onDeleted()
+          }}
             className="w-full py-2 rounded-xl text-xs font-semibold text-dac-red bg-dac-red/10 hover:bg-dac-red/20 transition-colors">Elimina</button>
         </div>
       </div>

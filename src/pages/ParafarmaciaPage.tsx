@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format, subDays, addDays, isToday } from 'date-fns'
@@ -123,7 +124,12 @@ function CassaTab({ operatore }: { operatore: Operatore }) {
               <div className="text-[10px] text-dac-gray-400">{item.operatore_nome ?? '—'}{item.metodo ? ` • ${item.metodo}` : ''}{item.note ? ` • ${item.note}` : ''}</div>
             </div>
             <div className={`text-sm font-bold ${item.tipo === 'Entrata' ? 'text-dac-green' : 'text-dac-red'}`}>{item.tipo === 'Entrata' ? '+' : '-'}€{Number(item.importo).toLocaleString('it-IT')}</div>
-            <button onClick={async () => { if (confirm('Eliminare? Il ricavo mirror NON verrà rimosso.')) { await supabase.from('parafarmacia_cassa').delete().eq('id', item.id); load() } }}
+            <button onClick={async () => {
+              if (!confirm('Eliminare? Il ricavo mirror NON verrà rimosso.')) return
+              const { error } = await supabase.from('parafarmacia_cassa').delete().eq('id', item.id)
+              if (!reportError('eliminazione movimento cassa', error)) return
+              load()
+            }}
               className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={13} /></button>
           </div>
         ))}</div>}
@@ -144,9 +150,7 @@ function CassaForm({ data, operatore, onClose, onSaved }: { data: string; operat
   async function salva() {
     if (!importo || !descrizione.trim()) return; setSaving(true)
     const payload = { data, tipo, importo, metodo, operatore_nome: operatore.nome, descrizione: descrizione.trim(), note: note || null }
-    console.log('[CassaForm] insert payload:', payload)
-    const { data: inserted, error } = await supabase.from('parafarmacia_cassa').insert(payload).select()
-    console.log('[CassaForm] result:', { inserted, error })
+    const { error } = await supabase.from('parafarmacia_cassa').insert(payload).select()
     setSaving(false)
     if (error) {
       alert(`Errore salvataggio cassa:\n${error.message}\n${error.details ?? ''}\n${error.hint ?? ''}`)
@@ -313,7 +317,12 @@ function MagazzinoTab({ operatore }: { operatore: Operatore }) {
                   <td className="td-cell text-center">
                     <div className="flex justify-center gap-1">
                       <button onClick={() => { setEditItem(p); setShowForm(true) }} className="p-1 rounded hover:bg-white/10 text-dac-gray-500 hover:text-white"><Edit3 size={12} /></button>
-                      <button onClick={async () => { if (confirm('Eliminare?')) { await supabase.from('inventario_parafarmacia').delete().eq('id', p.id); load() } }}
+                      <button onClick={async () => {
+                        if (!confirm('Eliminare?')) return
+                        const { error } = await supabase.from('inventario_parafarmacia').delete().eq('id', p.id)
+                        if (!reportError('eliminazione articolo parafarmacia', error)) return
+                        load()
+                      }}
                         className="p-1 rounded hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={12} /></button>
                     </div>
                   </td>
@@ -361,9 +370,15 @@ function ProdottoForm({ item, fornitori, onClose, onSaved }: { item: ProdottoPar
       prezzo_vendita: pVendita || null, aliquota_iva: iva,
       scadenza: scadenza || null, fornitore_id: fornitoreId || null, fornitore: null, note: note || null,
     }
-    if (isEdit) await supabase.from('inventario_parafarmacia').update(payload).eq('id', item!.id)
-    else await supabase.from('inventario_parafarmacia').insert({ ...payload, codice: 'PF-' + String(Date.now()).substring(7) })
-    setSaving(false); onSaved()
+    let error;
+    if (isEdit) {
+      ({ error } = await supabase.from('inventario_parafarmacia').update(payload).eq('id', item!.id))
+    } else {
+      ;({ error } = await supabase.from('inventario_parafarmacia').insert({ ...payload, codice: 'PF-' + String(Date.now()).substring(7) }))
+    }
+    setSaving(false)
+    if (!reportError(isEdit ? 'modifica articolo parafarmacia' : 'aggiunta articolo parafarmacia', error)) return
+    onSaved()
   }
 
   return (

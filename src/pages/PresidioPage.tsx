@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format, differenceInDays } from 'date-fns'
@@ -319,7 +320,8 @@ function ArticoloForm({ articolo, fornitori, onClose, onSaved }:
   async function elimina() {
     if (!articolo) return
     if (!confirm('Eliminare questo articolo?')) return
-    await supabase.from('inventario_presidio').update({ attivo: false }).eq('id', articolo.id)
+    const { error } = await supabase.from('inventario_presidio').update({ attivo: false }).eq('id', articolo.id)
+    if (!reportError('eliminazione articolo presidio', error)) return
     onSaved()
   }
 

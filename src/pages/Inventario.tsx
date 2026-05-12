@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
@@ -274,7 +275,12 @@ export function Inventario({ operatore }: Props) {
                           className="p-1 rounded hover:bg-white/10 text-dac-gray-500 hover:text-white transition-colors" title="Modifica">
                           <Edit3 size={12} />
                         </button>
-                        <button onClick={async () => { if (confirm('Eliminare ' + item.prodotto + '?')) { await supabase.from('inventario').delete().eq('id', item.id); loadItems() } }}
+                        <button onClick={async () => {
+                          if (!confirm('Eliminare ' + item.prodotto + '?')) return
+                          const { error } = await supabase.from('inventario').delete().eq('id', item.id)
+                          if (!reportError('eliminazione articolo', error)) return
+                          loadItems()
+                        }}
                           className="p-1 rounded hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red transition-colors" title="Elimina">
                           <Trash2 size={12} />
                         </button>
@@ -335,13 +341,16 @@ function InventarioForm({ item, fornitori, onClose, onSaved }: { item: Item | nu
       unita, soglia_min: soglia, costo_unitario: costo,
       scadenza: scadenza || null, note: note || null,
     }
+    let error;
     if (isEdit) {
-      await supabase.from('inventario').update(payload).eq('id', item!.id)
+      ({ error } = await supabase.from('inventario').update(payload).eq('id', item!.id))
     } else {
       const codice = marca.substring(0, 3).toUpperCase() + '-' + String(Date.now()).substring(7)
-      await supabase.from('inventario').insert({ ...payload, codice })
+      ;({ error } = await supabase.from('inventario').insert({ ...payload, codice }))
     }
-    setSaving(false); onSaved()
+    setSaving(false)
+    if (!reportError(isEdit ? 'modifica articolo' : 'aggiunta articolo', error)) return
+    onSaved()
   }
 
   return (
@@ -504,7 +513,12 @@ function DettaglioItem({ item, onClose, onEdit, onDeleted }: {
         </div>
 
         <div className="p-4 border-t border-white/5">
-          <button onClick={async () => { if (confirm('Eliminare ' + item.prodotto + '?')) { await supabase.from('inventario').delete().eq('id', item.id); onDeleted() } }}
+          <button onClick={async () => {
+            if (!confirm('Eliminare ' + item.prodotto + '?')) return
+            const { error } = await supabase.from('inventario').delete().eq('id', item.id)
+            if (!reportError('eliminazione articolo', error)) return
+            onDeleted()
+          }}
             className="w-full py-2 rounded-xl text-xs font-semibold text-dac-red bg-dac-red/10 hover:bg-dac-red/20 transition-colors">
             🗑️ Elimina
           </button>

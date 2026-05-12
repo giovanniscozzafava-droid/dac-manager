@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
@@ -129,12 +130,14 @@ export function TaskManager({ operatore }: Props) {
   }
 
   async function cambiaStato(taskId: string, nuovoStato: string) {
-    await supabase.from('task').update({ stato: nuovoStato }).eq('id', taskId)
+    const { error } = await supabase.from('task').update({ stato: nuovoStato }).eq('id', taskId)
+    if (!reportError('cambio stato task', error)) return
     setSelected(null); loadTasks()
   }
 
   async function archivia(taskId: string) {
-    await supabase.from('task').update({ stato: 'Archiviato' }).eq('id', taskId)
+    const { error } = await supabase.from('task').update({ stato: 'Archiviato' }).eq('id', taskId)
+    if (!reportError('archiviazione task', error)) return
     setSelected(null); loadTasks()
   }
 
@@ -362,7 +365,9 @@ function TaskDetail({ task, tick, onClose, onCambiaStato, onArchivia, onDeleted 
 
   async function elimina() {
     if (!confirm('Eliminare questo task?')) return
-    await supabase.from('task').delete().eq('id', task.id); onDeleted()
+    const { error } = await supabase.from('task').delete().eq('id', task.id)
+    if (!reportError('eliminazione task', error)) return
+    onDeleted()
   }
 
   return (
@@ -452,13 +457,15 @@ function NuovoTaskModal({ operatori, operatoreCorrente, isAdmin, onClose, onSave
     setSaving(true)
     const codice = 'TSK-' + assegnatoA.replace(/[. ]/g, '').substring(0, 3).toUpperCase() + '-' + format(new Date(), 'yyMMddHHmmss')
     const op = operatori.find(o => o.nome === assegnatoA)
-    await supabase.from('task').insert({
+    const { error } = await supabase.from('task').insert({
       codice, tipo, descrizione: desc.trim(), priorita, stato: 'Da fare',
       assegnato_a: op?.id ?? null, assegnato_a_nome: assegnatoA, assegnato_da: operatoreCorrente.nome,
       scadenza: scadenza || null, ora: ora ? ora + ':00' : null,
       paziente_nome: paziente || null, servizio_nome: null, note: note || null,
     })
-    setSaving(false); onSaved()
+    setSaving(false)
+    if (!reportError('creazione task', error)) return
+    onSaved()
   }
 
   return (

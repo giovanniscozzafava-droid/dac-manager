@@ -36,20 +36,46 @@ export function useAuth() {
     let mounted = true;
     let currentUserId: string | null = null;
 
-    const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user?.email) {
-        if (mounted) setLoading(false);
-        return;
-      }
-      const op = await matchOperatore(session.user.email);
+    // Watchdog: se entro 8s non siamo usciti da loading, forziamo l'uscita.
+    // Risolve un blocco osservato (bug C): `supabase.auth.getSession()` può restare
+    // in pending indefinitamente per un lock orfano multi-tab non ripulito.
+    const watchdog = setTimeout(() => {
       if (mounted) {
-        currentUserId = session.user.id;
-        setSession(session);
-        setUser(session.user);
-        setOperatore(op);
-        if (!op) setAuthError('Account non associato a nessun operatore. Contatta l\'amministratore.');
+        console.warn('[auth] watchdog: getSession bloccato, forzo loading=false');
         setLoading(false);
+      }
+    }, 8000);
+
+    const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
+      Promise.race([
+        p,
+        new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
+      ]);
+
+    const init = async () => {
+      try {
+        const { data: { session } } = await withTimeout(
+          supabase.auth.getSession(),
+          6000,
+          { data: { session: null } } as any
+        );
+        if (!session?.user?.email) {
+          if (mounted) { clearTimeout(watchdog); setLoading(false); }
+          return;
+        }
+        const op = await withTimeout(matchOperatore(session.user.email), 6000, null);
+        if (mounted) {
+          currentUserId = session.user.id;
+          setSession(session);
+          setUser(session.user);
+          setOperatore(op);
+          if (!op) setAuthError('Account non associato a nessun operatore. Contatta l\'amministratore.');
+          clearTimeout(watchdog);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('[auth] init error:', err);
+        if (mounted) { clearTimeout(watchdog); setLoading(false); }
       }
     };
 
@@ -90,7 +116,7 @@ export function useAuth() {
       if (!op) setAuthError('Account non associato a nessun operatore.');
     });
 
-    return () => { mounted = false; subscription.unsubscribe(); };
+    return () => { mounted = false; clearTimeout(watchdog); subscription.unsubscribe(); };
   }, [matchOperatore]);
 
   const login = useCallback(async (email: string, password: string) => {

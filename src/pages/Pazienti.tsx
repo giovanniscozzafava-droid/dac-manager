@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
@@ -79,8 +80,7 @@ export function Pazienti({ operatore }: Props) {
       .select('*')
       .eq('archiviato', false)
       .order('cognome')
-    console.log('[loadPazienti]', { count: data?.length, error })
-    if (error) { console.error('loadPazienti ERROR:', error); setLoading(false); return }
+    if (error) { console.error('[loadPazienti]', error); setLoading(false); return }
     setPazienti(data ?? [])
     setLoading(false)
   }, [])
@@ -276,7 +276,8 @@ function DettaglioPaziente({ paziente: p, onClose, onEdit, onDeleted, onReload }
 
   async function elimina() {
     if (!confirm(`Eliminare ${p.cognome} ${p.nome}? L'operazione è irreversibile.`)) return
-    await supabase.from('pazienti').update({ archiviato: true }).eq('id', p.id)
+    const { error } = await supabase.from('pazienti').update({ archiviato: true }).eq('id', p.id)
+    if (!reportError('archiviazione paziente', error)) return
     onDeleted()
   }
 
@@ -516,7 +517,8 @@ function PazienteForm({ paziente, onClose, onSaved }: {
     }
 
     if (isEdit) {
-      await supabase.from('pazienti').update(payload).eq('id', paziente!.id)
+      const { error: updErr } = await supabase.from('pazienti').update(payload).eq('id', paziente!.id)
+      if (!reportError('modifica paziente', updErr)) { setSaving(false); return }
     } else {
       const codice = 'PAZ-' + format(new Date(), 'yyMMddHHmmss')
       const { error: insErr } = await supabase.from('pazienti').insert({

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
@@ -62,7 +63,8 @@ export function PacchettiPage({ operatore }: Props) {
     if (pkg.sedute_fatte >= pkg.sedute_totali) { alert('Tutte le sedute completate'); return }
     const nuoveFatte = pkg.sedute_fatte + 1
     const nuovoStato = nuoveFatte >= pkg.sedute_totali ? 'Completato' : 'Attivo'
-    await supabase.from('pacchetti').update({ sedute_fatte: nuoveFatte, sedute_rimaste: pkg.sedute_totali - nuoveFatte, stato: nuovoStato }).eq('id', pkg.id)
+    const { error } = await supabase.from('pacchetti').update({ sedute_fatte: nuoveFatte, sedute_rimaste: pkg.sedute_totali - nuoveFatte, stato: nuovoStato }).eq('id', pkg.id)
+    if (!reportError('registrazione seduta', error)) return
     load()
   }
 
@@ -182,14 +184,18 @@ function PacchettoForm({ item, predefiniti, onClose, onSaved }: { item: Pacchett
       sedute_totali: seduteTot, sedute_fatte: seduteFatte, prezzo,
       scadenza: scadenza || null, note: note || null, stato: seduteFatte >= seduteTot ? 'Completato' : 'Attivo',
     }
-    if (isEdit) { await supabase.from('pacchetti').update(payload).eq('id', item!.id) }
-    else {
+    let error;
+    if (isEdit) {
+      ({ error } = await supabase.from('pacchetti').update(payload).eq('id', item!.id))
+    } else {
       payload.codice = 'PKG-' + format(new Date(), 'yyMMddHHmmss')
       payload.paziente_id = selPaz?.id ?? null
       payload.data_acquisto = format(new Date(), 'yyyy-MM-dd')
-      await supabase.from('pacchetti').insert(payload)
+      ;({ error } = await supabase.from('pacchetti').insert(payload))
     }
-    setSaving(false); onSaved()
+    setSaving(false)
+    if (!reportError(isEdit ? 'modifica pacchetto' : 'creazione pacchetto', error)) return
+    onSaved()
   }
 
   return (
@@ -248,7 +254,12 @@ function Detail({ p, onClose, onEdit, onSeduta, onDeleted }: { p: Pacchetto; onC
         {p.note && <DR label="Note" value={p.note} />}
         {p.stato === 'Attivo' && <button onClick={onSeduta} className="w-full py-2 rounded-xl text-xs font-semibold bg-dac-green/10 text-dac-green hover:bg-dac-green/20 mt-2">✅ Registra seduta</button>}
       </div>
-      <div className="p-4 border-t border-white/5"><button onClick={async () => { if (confirm('Eliminare?')) { await supabase.from('pacchetti').delete().eq('id', p.id); onDeleted() } }} className="w-full py-2 rounded-xl text-xs font-semibold text-dac-red bg-dac-red/10 hover:bg-dac-red/20">🗑️ Elimina</button></div>
+      <div className="p-4 border-t border-white/5"><button onClick={async () => {
+        if (!confirm('Eliminare?')) return
+        const { error } = await supabase.from('pacchetti').delete().eq('id', p.id)
+        if (!reportError('eliminazione pacchetto', error)) return
+        onDeleted()
+      }} className="w-full py-2 rounded-xl text-xs font-semibold text-dac-red bg-dac-red/10 hover:bg-dac-red/20">🗑️ Elimina</button></div>
     </div></>
   )
 }

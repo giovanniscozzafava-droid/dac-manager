@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
@@ -93,7 +94,12 @@ export function CostiPage({ operatore }: Props) {
                 <div className="text-sm font-bold text-dac-red">€{Number(c.importo).toLocaleString('it-IT')}</div>
                 {c.metodo && <div className="text-[9px] text-dac-gray-500">{c.metodo}</div>}
               </div>
-              <button onClick={async () => { if (confirm('Eliminare?')) { await supabase.from('costi').delete().eq('id', c.id); load() } }}
+              <button onClick={async () => {
+                if (!confirm('Eliminare?')) return
+                const { error } = await supabase.from('costi').delete().eq('id', c.id)
+                if (!reportError('eliminazione costo', error)) return
+                load()
+              }}
                 className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red flex-shrink-0"><Trash2 size={13} /></button>
             </div>
           ))}
@@ -118,8 +124,10 @@ function CostoForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
   async function salva() {
     if (!descrizione.trim() || !importo) return
     setSaving(true)
-    await supabase.from('costi').insert({ codice: 'CST-' + format(new Date(), 'yyMMddHHmmss'), data, categoria, descrizione: descrizione.trim(), importo, fornitore: fornitore || null, metodo, note: note || null })
-    setSaving(false); onSaved()
+    const { error } = await supabase.from('costi').insert({ codice: 'CST-' + format(new Date(), 'yyMMddHHmmss'), data, categoria, descrizione: descrizione.trim(), importo, fornitore: fornitore || null, metodo, note: note || null })
+    setSaving(false)
+    if (!reportError('salvataggio costo', error)) return
+    onSaved()
   }
 
   return (
