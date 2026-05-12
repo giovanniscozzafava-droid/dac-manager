@@ -1,13 +1,13 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import Layout from './components/Layout';
 import LoginSplash from './components/LoginSplash';
 import { DevicePreview } from './components/DevicePreview';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { ResetPassword } from './components/ResetPassword';
 import { BugReports } from './pages/BugReports';
 import { PresidioPage } from './pages/PresidioPage';
-
 import { Dashboard } from './pages/Dashboard';
 import { Agenda } from './pages/Agenda';
 import { Pazienti } from './pages/Pazienti';
@@ -20,11 +20,27 @@ import { CostiPage } from './pages/CostiPage';
 import { ParafarmaciaPage } from './pages/ParafarmaciaPage';
 import { ContabilitaPage } from './pages/ContabilitaPage';
 import { ConfigPage } from './pages/ConfigPage';
-
 import { AnamnesiPage as AnamnesiComp } from './pages/Anamnesi';
+
+function isRecoveryFlow(): boolean {
+  if (typeof window === 'undefined') return false;
+  const h = window.location.hash || '';
+  return h.includes('type=recovery');
+}
 
 export default function App() {
   const { loading, operatore, authError, isAdmin, login, logout } = useAuth();
+  const [recoveryMode, setRecoveryMode] = useState<boolean>(isRecoveryFlow());
+
+  useEffect(() => {
+    const onHash = () => setRecoveryMode(isRecoveryFlow());
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  if (recoveryMode) {
+    return <ResetPassword onDone={() => setRecoveryMode(false)} />;
+  }
 
   if (loading) {
     return (
@@ -37,13 +53,10 @@ export default function App() {
       </div>
     );
   }
-
   if (!operatore) {
     return <LoginSplash onLogin={login} authError={authError} />;
   }
-
   const o = operatore;
-
   return (
     <ErrorBoundary operatoreNome={o.nome} operatoreEmail={o.email}>
     <BrowserRouter>
