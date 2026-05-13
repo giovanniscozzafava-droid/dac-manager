@@ -2,6 +2,37 @@ import { useState, useEffect, useCallback } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 
+// Bypass del client Supabase per la query operatori: il client ha un
+// LockManager interno che blocca le query subito dopo SIGNED_IN (sessione
+// ricostruita da localStorage al reload). Usiamo fetch diretto al REST API
+// con il token già in mano.
+const SUPABASE_URL = 'https://yyjhuvftcwvnxlskvjne.supabase.co';
+const SUPABASE_ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5amh1dmZ0Y3d2bnhsc2t2am5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNDg1MDUsImV4cCI6MjA5MTcyNDUwNX0.MEohst7ka_cg_XtwLIbCRbxphxQghqYdFBDSkWMftas';
+
+async function fetchOperatoreByEmail(email: string, accessToken: string): Promise<Operatore | null> {
+  const cols = 'id,nome,ruolo,settore,email,attivo,emoji,colore,colore_bordo,area';
+  const url = `${SUPABASE_URL}/rest/v1/operatori?select=${cols}&email=eq.${encodeURIComponent(email.toLowerCase().trim())}&attivo=eq.true&limit=1`;
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), 5000);
+  try {
+    const r = await fetch(url, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${accessToken}`,
+      },
+      signal: ctl.signal,
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    return Array.isArray(data) && data[0] ? (data[0] as Operatore) : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 export interface Operatore {
   id: string;
   nome: string;
@@ -22,14 +53,17 @@ export function useAuth() {
   const [operatore, setOperatore] = useState<Operatore | null>(null);
   const [authError, setAuthError] = useState('');
 
-  const matchOperatore = useCallback(async (email: string): Promise<Operatore | null> => {
-    const { data } = await supabase
-      .from('operatori')
-      .select('id, nome, ruolo, settore, email, attivo, emoji, colore, colore_bordo, area')
-      .eq('email', email.toLowerCase().trim())
-      .eq('attivo', true)
-      .single();
-    return data as Operatore | null;
+  // Wrapper: usa fetch diretto + token dalla session corrente
+  const matchOperatore = useCallback(async (email: string, accessToken?: string): Promise<Operatore | null> => {
+    let token = accessToken;
+    if (!token) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        token = session?.access_token;
+      } catch { /* noop */ }
+    }
+    if (!token) return null;
+    return fetchOperatoreByEmail(email, token);
   }, []);
 
   useEffect(() => {
@@ -104,9 +138,14 @@ export function useAuth() {
         return;
       }
 
-      // Nuovo utente: carica operatore (con timeout di sicurezza)
+      // Nuovo utente: carica operatore con il token che abbiamo già
+      // (bypass client supabase per evitare lock interno dopo SIGNED_IN)
       currentUserId = newSession.user.id;
-      const op = await withTimeout(matchOperatore(newSession.user.email), 6000, null);
+      const op = await withTimeout(
+        matchOperatore(newSession.user.email, newSession.access_token),
+        6000,
+        null
+      );
       clearTimeout(watchdog);
       try { sessionStorage.removeItem(RECOVERY_KEY); } catch {}
       setSession(newSession);
