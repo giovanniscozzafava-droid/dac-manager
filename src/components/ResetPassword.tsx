@@ -12,11 +12,47 @@ export function ResetPassword({ onDone }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
+  const [bootstrapping, setBootstrapping] = useState(true);
 
+  // Cleanup sessione vecchia + applica il token recovery dall'URL hash.
+  // Risolve il caso in cui l'utente clicca il link recovery mentre era già
+  // loggato come altro utente (la vecchia sessione confondeva supabase e
+  // l'app si bloccava su splash infinito).
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      setEmail(data.user?.email ?? null);
-    });
+    let mounted = true;
+    const bootstrap = async () => {
+      // Watchdog: 6s max. Se Supabase si pianta, mostriamo comunque il form.
+      const timeout = setTimeout(() => {
+        if (mounted) setBootstrapping(false);
+      }, 6000);
+
+      try {
+        // 1. Estrai i token dall'hash (#access_token=...&refresh_token=...&type=recovery)
+        const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
+        const params = new URLSearchParams(hash);
+        const accessToken = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const isRecovery = params.get('type') === 'recovery';
+
+        if (isRecovery && accessToken && refreshToken) {
+          // 2. Pulisci eventuale sessione vecchia (di un altro utente loggato)
+          try { await supabase.auth.signOut(); } catch { /* noop */ }
+          // 3. Applica la sessione recovery
+          await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+        }
+
+        // 4. Leggi l'email dell'utente recovery (solo display)
+        const { data } = await supabase.auth.getUser();
+        if (mounted) setEmail(data.user?.email ?? null);
+      } catch (e: any) {
+        console.warn('[ResetPassword] bootstrap error:', e?.message || e);
+      } finally {
+        clearTimeout(timeout);
+        if (mounted) setBootstrapping(false);
+      }
+    };
+    bootstrap();
+    return () => { mounted = false; };
   }, []);
 
   async function handleSubmit() {
@@ -56,7 +92,12 @@ export function ResetPassword({ onDone }: Props) {
           )}
         </div>
 
-        {success ? (
+        {bootstrapping ? (
+          <div className="text-center py-6">
+            <div className="w-8 h-8 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-blue-300/70 text-sm">Verifica del link in corso…</p>
+          </div>
+        ) : success ? (
           <div className="text-center py-6">
             <div className="text-4xl mb-3">✅</div>
             <p className="text-emerald-300 mb-1">Password aggiornata!</p>
