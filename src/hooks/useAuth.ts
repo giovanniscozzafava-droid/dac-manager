@@ -67,39 +67,13 @@ export function useAuth() {
         new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
       ]);
 
-    const init = async () => {
-      try {
-        const { data: { session } } = await withTimeout(
-          supabase.auth.getSession(),
-          6000,
-          { data: { session: null } } as any
-        );
-        if (!session?.user?.email) {
-          if (mounted) {
-            clearTimeout(watchdog);
-            try { sessionStorage.removeItem(RECOVERY_KEY); } catch {}
-            setLoading(false);
-          }
-          return;
-        }
-        const op = await withTimeout(matchOperatore(session.user.email), 6000, null);
-        if (mounted) {
-          currentUserId = session.user.id;
-          try { sessionStorage.removeItem(RECOVERY_KEY); } catch {}
-          setSession(session);
-          setUser(session.user);
-          setOperatore(op);
-          if (!op) setAuthError('Account non associato a nessun operatore. Contatta l\'amministratore.');
-          clearTimeout(watchdog);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error('[auth] init error:', err);
-        if (mounted) { clearTimeout(watchdog); setLoading(false); }
-      }
-    };
-
-    init();
+    // NIENTE init manuale di getSession() qui.
+    // Bug noto: quando il client Supabase fa boot con session esistente in
+    // localStorage, il LockManager interno blocca le query successive finché
+    // non viene dispatched INITIAL_SESSION. Se chiamiamo matchOperatore qui,
+    // va in timeout 6s. Soluzione: lasciamo che onAuthStateChange (sotto)
+    // gestisca TUTTO. Il listener viene chiamato subito al subscribe con
+    // INITIAL_SESSION (sia null che valida), quindi non perdiamo nulla.
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
@@ -111,13 +85,16 @@ export function useAuth() {
         return;
       }
 
-      // SIGNED_OUT o nessuna sessione: reset
+      // SIGNED_OUT o nessuna sessione: reset + mostra form login
       if (event === 'SIGNED_OUT' || !newSession?.user?.email) {
         currentUserId = null;
         setSession(null);
         setUser(null);
         setOperatore(null);
         setAuthError('');
+        clearTimeout(watchdog);
+        try { sessionStorage.removeItem(RECOVERY_KEY); } catch {}
+        setLoading(false);
         return;
       }
 
@@ -127,16 +104,16 @@ export function useAuth() {
         return;
       }
 
-      // Nuovo utente: carica operatore (con timeout: stesso problema lock Supabase del bug C)
+      // Nuovo utente: carica operatore (con timeout di sicurezza)
       currentUserId = newSession.user.id;
       const op = await withTimeout(matchOperatore(newSession.user.email), 6000, null);
-      // Forziamo loading=false anche qui per sicurezza (se l'init era in timeout)
       clearTimeout(watchdog);
-      setLoading(false);
+      try { sessionStorage.removeItem(RECOVERY_KEY); } catch {}
       setSession(newSession);
       setUser(newSession.user);
       setOperatore(op);
       if (!op) setAuthError('Account non associato a nessun operatore.');
+      setLoading(false);
     });
 
     return () => { mounted = false; clearTimeout(watchdog); subscription.unsubscribe(); };
