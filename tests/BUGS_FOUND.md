@@ -304,3 +304,40 @@ bloccato.
 Il test `sessione persistente: dopo reload resto loggato` non è più `fixme`
 (il fix useAuth è in main). Va rieseguito contro produzione dopo deploy di
 questi ulteriori fix.
+
+### Bug P — Cassa parafarmacia UI senza IVA (regressione bug A dal path UI) ➜ FIXATO
+
+**Stato:** 🟢 **Risolto** in `ParafarmaciaPage.tsx` CassaForm.
+
+**Cosa era:** il form cassa salvava solo importo; `imponibile`/`aliquota_iva`/`iva`
+NULL → mirror ricavi/costi a IVA 0% nonostante il trigger corretto.
+
+**Fix:** select aliquota + calcolo imponibile/IVA nel payload; lista mostra descrizione.
+
+### Bug Q — useAuth race post-await + timeout mascherato ➜ FIXATO
+
+**Stato:** 🟢 **Risolto** in `useAuth.ts`.
+
+**Cosa era:** dopo `matchOperatore` un logout poteva essere sovrascritto dal callback
+stale; timeout/rete mostravano "Account non associato".
+
+**Fix:** generation counter + check `mounted`; `MatchResult` distingue not-found vs errore rete.
+
+### Bug R — Presidio scarico non atomico / costi senza codice ➜ FIXATO
+
+**Stato:** 🟢 **Risolto** in `PresidioPage.tsx`.
+
+**Fix:** update stock con `.gte('quantita', q)` + rollback se insert scarico fallisce;
+`codice` su insert costi.
+
+### Bug S — Contabilità annuale: variazioni vs mese invece che YoY ➜ FIXATO
+
+**Fix:** in modalità Anno confronta con l'anno precedente e carica 2 anni di dati.
+
+### Bug T — CF: secolo ambiguo (1920→2020) ➜ MITIGATO
+
+**Fix:** euristica età band 14–100; se ambiguo (es. 6 vs 106) preferisci anziano in clinica.
+
+### Bug U — Pacchetti double-click seduta ➜ FIXATO
+
+**Fix:** optimistic lock `.eq('sedute_fatte', pkg.sedute_fatte)`.
