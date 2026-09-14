@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format, addDays, subDays, isToday, isBefore, startOfDay } from 'date-fns'
@@ -8,6 +9,9 @@ import {
   ChevronLeft, ChevronRight, CalendarDays, Plus, X, Clock,
   User, Stethoscope, Check, AlertTriangle, Ban, Search
 } from 'lucide-react'
+
+/** Stati terminali: non si possono più modificare (ricavo/recall già generati). */
+const STATI_IRREVERSIBILI = new Set(['Completato', 'No-show', 'Cancellato'])
 
 // ═══════════════════════════════════════════════════════════
 // CONFIG
@@ -153,8 +157,15 @@ export function Agenda({ operatore }: Props) {
   }
 
   // ── Cambio stato rapido ──
-  async function cambiaStato(appId: string, nuovoStato: string) { if ((nuovoStato === 'Completato' || nuovoStato === 'No-show') && !confirm('Confermi ' + nuovoStato + '? Azione irreversibile.')) return;
-    await supabase.from('appuntamenti').update({ stato: nuovoStato }).eq('id', appId)
+  async function cambiaStato(appId: string, nuovoStato: string) {
+    const corrente = appuntamenti.find(a => a.id === appId)
+    if (corrente && STATI_IRREVERSIBILI.has(corrente.stato)) {
+      alert(`Lo stato "${corrente.stato}" è definitivo e non può essere modificato.`)
+      return
+    }
+    if (STATI_IRREVERSIBILI.has(nuovoStato) && !confirm('Confermi ' + nuovoStato + '? Azione irreversibile.')) return
+    const { error } = await supabase.from('appuntamenti').update({ stato: nuovoStato }).eq('id', appId)
+    if (!reportError('cambio stato appuntamento', error)) return
     setSelectedApp(null)
     loadAppuntamenti()
   }
@@ -362,7 +373,7 @@ function NuovoAppuntamentoModal({ data, ora, operatoreNome, colIdx, onClose, onS
     setSaving(true)
     const srv = servizi.find(s => s.nome === selectedSrv)
 
-    await supabase.from('appuntamenti').insert({
+    const { error } = await supabase.from('appuntamenti').insert({
       paziente_id: selectedPaz?.id ?? null,
       paziente_nome: pazNome,
       servizio_id: srv?.id ?? null,
@@ -375,9 +386,11 @@ function NuovoAppuntamentoModal({ data, ora, operatoreNome, colIdx, onClose, onS
       stato: 'Prenotato',
       colonna_agenda: colIdx + 2,
       note: note || null,
+      importo: srv?.prezzo ?? null,
     })
 
     setSaving(false)
+    if (!reportError('creazione appuntamento', error)) return
     onSaved()
   }
 
@@ -492,8 +505,13 @@ function DettaglioAppuntamento({ app, onClose, onCambiaStato, onDeleted }: {
   const stato = STATO_COLORS[app.stato] ?? STATO_COLORS['Prenotato']
 
   async function elimina() {
+    if (STATI_IRREVERSIBILI.has(app.stato)) {
+      alert(`Non puoi eliminare un appuntamento in stato "${app.stato}".`)
+      return
+    }
     if (!confirm('Eliminare questo appuntamento?')) return
-    await supabase.from('appuntamenti').delete().eq('id', app.id)
+    const { error } = await supabase.from('appuntamenti').delete().eq('id', app.id)
+    if (!reportError('eliminazione appuntamento', error)) return
     onDeleted()
   }
 
@@ -525,28 +543,39 @@ function DettaglioAppuntamento({ app, onClose, onCambiaStato, onDeleted }: {
             <label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-2">
               Cambia stato
             </label>
+            {STATI_IRREVERSIBILI.has(app.stato) ? (
+              <p className="text-[11px] text-dac-gray-500 px-1">
+                Stato definitivo — non modificabile (eventuale ricavo/recall già registrati).
+              </p>
+            ) : (
             <div className="grid grid-cols-2 gap-1.5">
               {['Prenotato', 'Confermato', 'In corso', 'Completato', 'No-show', 'Cancellato'].map(s => {
                 const sc = STATO_COLORS[s]
                 const isActive = app.stato === s
                 return (
                   <button key={s} onClick={() => onCambiaStato(app.id, s)}
-                    className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${isActive ? '' : 'hover:opacity-80'}`}
+                    disabled={isActive}
+                    className={`px-2 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${isActive ? '' : 'hover:opacity-80'} disabled:cursor-default`}
                     style={{ background: sc.bg, color: sc.text, boxShadow: isActive ? `0 0 0 2px ${sc.text}` : 'none' }}>
                     {sc.label} {s}
                   </button>
                 )
               })}
             </div>
+            )}
           </div>
         </div>
 
         {/* Footer */}
         <div className="p-4 border-t border-white/5">
+          {STATI_IRREVERSIBILI.has(app.stato) ? (
+            <p className="text-center text-[10px] text-dac-gray-500">Eliminazione non disponibile per stati definitivi.</p>
+          ) : (
           <button onClick={elimina}
             className="w-full py-2 rounded-xl text-xs font-semibold text-dac-red bg-dac-red/10 hover:bg-dac-red/20 transition-colors">
             🗑️ Elimina Appuntamento
           </button>
+          )}
         </div>
       </div>
     </>

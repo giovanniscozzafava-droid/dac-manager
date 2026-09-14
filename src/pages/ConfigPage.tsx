@@ -1,6 +1,7 @@
 import { AutomazioniPanel } from './AutomazioniPanel'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import {
   Settings, Users, ListChecks, Zap, Package, Building2,
@@ -81,12 +82,21 @@ function OperatoriTab() {
             <div className="text-[10px] text-dac-gray-400">{op.email || '—'} • {op.ruolo}</div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={async () => { await supabase.from('operatori').update({ attivo: !op.attivo }).eq('id', op.id); load() }}
+            <button onClick={async () => {
+              const { error } = await supabase.from('operatori').update({ attivo: !op.attivo }).eq('id', op.id)
+              if (!reportError(op.attivo ? 'disattivazione operatore' : 'attivazione operatore', error)) return
+              load()
+            }}
               className="text-dac-gray-400 hover:text-white">
               {op.attivo ? <ToggleRight size={20} className="text-dac-green" /> : <ToggleLeft size={20} />}
             </button>
             <button onClick={() => { setEditItem(op); setShowForm(true) }} className="p-1.5 rounded-md hover:bg-white/10 text-dac-gray-400"><Edit3 size={13} /></button>
-            <button onClick={async () => { if (confirm(`Eliminare ${op.nome}?`)) { await supabase.from('operatori').delete().eq('id', op.id); load() } }}
+            <button onClick={async () => {
+              if (!confirm(`Eliminare ${op.nome}?`)) return
+              const { error } = await supabase.from('operatori').delete().eq('id', op.id)
+              if (!reportError('eliminazione operatore', error)) return
+              load()
+            }}
               className="p-1.5 rounded-md hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={13} /></button>
           </div>
         </div>
@@ -106,9 +116,12 @@ function OperatoreForm({ item, onClose, onSaved }: { item: any; onClose: () => v
   async function salva() {
     if (!nome.trim()) return; setSaving(true)
     const payload = { nome: nome.trim(), email: email || null, ruolo, emoji, attivo: true }
-    if (item) await supabase.from('operatori').update(payload).eq('id', item.id)
-    else await supabase.from('operatori').insert(payload)
-    setSaving(false); onSaved()
+    const { error } = item
+      ? await supabase.from('operatori').update(payload).eq('id', item.id)
+      : await supabase.from('operatori').insert(payload)
+    setSaving(false)
+    if (!reportError(item ? 'modifica operatore' : 'creazione operatore', error)) return
+    onSaved()
   }
 
   return <Modal title={item ? '✏️ Modifica Operatore' : '➕ Nuovo Operatore'} onClose={onClose}>
@@ -171,12 +184,21 @@ function ServiziTab() {
                 <span className="text-xs font-bold text-dac-green flex-shrink-0">€{Number(s.prezzo).toLocaleString('it-IT')}</span>
                 <span className="text-[9px] text-dac-gray-500 flex-shrink-0">{s.durata_minuti} min</span>
                 <div className="flex gap-1 flex-shrink-0">
-                  <button onClick={async () => { await supabase.from('servizi').update({ attivo: !s.attivo }).eq('id', s.id); load() }}
+                  <button onClick={async () => {
+                    const { error } = await supabase.from('servizi').update({ attivo: !s.attivo }).eq('id', s.id)
+                    if (!reportError(s.attivo ? 'disattivazione servizio' : 'attivazione servizio', error)) return
+                    load()
+                  }}
                     className="text-dac-gray-400 hover:text-white">
                     {s.attivo ? <ToggleRight size={16} className="text-dac-green" /> : <ToggleLeft size={16} />}
                   </button>
                   <button onClick={() => { setEditItem(s); setShowForm(true) }} className="p-1 rounded hover:bg-white/10 text-dac-gray-400"><Edit3 size={12} /></button>
-                  <button onClick={async () => { if (confirm(`Eliminare ${s.nome}?`)) { await supabase.from('servizi').delete().eq('id', s.id); load() } }}
+                  <button onClick={async () => {
+                    if (!confirm(`Eliminare ${s.nome}?`)) return
+                    const { error } = await supabase.from('servizi').delete().eq('id', s.id)
+                    if (!reportError('eliminazione servizio', error)) return
+                    load()
+                  }}
                     className="p-1 rounded hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={12} /></button>
                 </div>
               </div>
@@ -202,9 +224,12 @@ function ServizioForm({ item, onClose, onSaved }: { item: any; onClose: () => vo
   async function salva() {
     if (!nome.trim()) return; setSaving(true)
     const payload = { nome: nome.trim(), prezzo, durata_minuti: durata, reparto, operatore_default: operatoreDefault || null, attivo: true }
-    if (item) await supabase.from('servizi').update(payload).eq('id', item.id)
-    else await supabase.from('servizi').insert(payload)
-    setSaving(false); onSaved()
+    const { error } = item
+      ? await supabase.from('servizi').update(payload).eq('id', item.id)
+      : await supabase.from('servizi').insert(payload)
+    setSaving(false)
+    if (!reportError(item ? 'modifica servizio' : 'creazione servizio', error)) return
+    onSaved()
   }
 
   return <Modal title={item ? '✏️ Modifica Servizio' : '➕ Nuovo Servizio'} onClose={onClose}>
@@ -253,11 +278,20 @@ function PacchettiPredTab() {
                 <div className="text-[10px] text-dac-gray-400">{p.servizio || '—'}</div>
               </div>
               <div className="flex gap-1">
-                <button onClick={async () => { await supabase.from('pacchetti_predefiniti').update({ attivo: !p.attivo }).eq('id', p.id); load() }}>
+                <button onClick={async () => {
+                  const { error } = await supabase.from('pacchetti_predefiniti').update({ attivo: !p.attivo }).eq('id', p.id)
+                  if (!reportError(p.attivo ? 'disattivazione pacchetto' : 'attivazione pacchetto', error)) return
+                  load()
+                }}>
                   {p.attivo ? <ToggleRight size={18} className="text-dac-green" /> : <ToggleLeft size={18} className="text-dac-gray-500" />}
                 </button>
                 <button onClick={() => { setEditItem(p); setShowForm(true) }} className="p-1 rounded hover:bg-white/10 text-dac-gray-400"><Edit3 size={12} /></button>
-                <button onClick={async () => { if (confirm('Eliminare?')) { await supabase.from('pacchetti_predefiniti').delete().eq('id', p.id); load() } }}
+                <button onClick={async () => {
+                  if (!confirm('Eliminare?')) return
+                  const { error } = await supabase.from('pacchetti_predefiniti').delete().eq('id', p.id)
+                  if (!reportError('eliminazione pacchetto predefinito', error)) return
+                  load()
+                }}
                   className="p-1 rounded hover:bg-dac-red/10 text-dac-gray-500 hover:text-dac-red"><Trash2 size={12} /></button>
               </div>
             </div>
@@ -286,9 +320,12 @@ function PaccPredForm({ item, onClose, onSaved }: { item: any; onClose: () => vo
   async function salva() {
     if (!nome.trim()) return; setSaving(true)
     const payload = { nome: nome.trim(), servizio: servizio || null, sedute, prezzo, validita_mesi: validita, attivo: true }
-    if (item) await supabase.from('pacchetti_predefiniti').update(payload).eq('id', item.id)
-    else await supabase.from('pacchetti_predefiniti').insert(payload)
-    setSaving(false); onSaved()
+    const { error } = item
+      ? await supabase.from('pacchetti_predefiniti').update(payload).eq('id', item.id)
+      : await supabase.from('pacchetti_predefiniti').insert(payload)
+    setSaving(false)
+    if (!reportError(item ? 'modifica pacchetto predefinito' : 'creazione pacchetto predefinito', error)) return
+    onSaved()
   }
 
   return <Modal title={item ? '✏️ Modifica Pacchetto' : '➕ Nuovo Pacchetto'} onClose={onClose}>

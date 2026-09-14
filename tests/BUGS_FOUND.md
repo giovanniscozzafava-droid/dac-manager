@@ -248,3 +248,59 @@ identico al precedente. Solo in caso di blocco l'app smette di restare bloccata.
 e dovrebbe passare verde.
 
 **Da fare (utente):** `git commit` + `git push` → Vercel deploya auto. Poi togliere fixme dal test.
+
+---
+
+## Bug trovati in passata QA 2026-09-14 (test / debug / improve)
+
+### Bug L — Agenda: scritture senza error handling ➜ FIXATO
+
+**Stato:** 🟢 **Risolto** in `src/pages/Agenda.tsx`.
+
+**Cosa era:** `cambiaStato`, `insert` nuovo appuntamento e `delete` non controllavano `error`.
+Se il trigger di completamento falliva (o RLS/rete), la UI chiudeva il pannello e
+ricaricava come se l'operazione fosse riuscita — utente non vedeva l'errore e i
+ricavi non venivano creati.
+
+**Fix:** tutte le scritture usano `reportError`; in caso di errore si interrompe
+il flusso (pannello resta / form non si chiude).
+
+### Bug M — Stati "irreversibili" in Agenda non erano davvero irreversibili ➜ FIXATO
+
+**Stato:** 🟢 **Risolto** in `src/pages/Agenda.tsx`.
+
+**Cosa era:** il confirm diceva "Azione irreversibile" per Completato/No-show, ma
+poi si poteva cambiare di nuovo lo stato (anche da Completato → Prenotato) e
+eliminare l'appuntamento. Rischio di inconsistenza con ricavi/recall già generati.
+
+**Fix:** `STATI_IRREVERSIBILI = Completato | No-show | Cancellato`. Da questi stati
+non si può più cambiare né eliminare; la UI mostra messaggio esplicito.
+
+**Test:** `tests/agenda.spec.ts` — *REGRESSIONE: stati definitivi non si possono più modificare via UI*.
+
+### Bug N — Config / Automazioni / BugReports: scritture silenziose ➜ FIXATO
+
+**Stato:** 🟢 **Risolto**.
+
+**Cosa era:** `ConfigPage` (operatori/servizi/pacchetti), `AutomazioniPanel` e
+aggiornamenti stato/note in `BugReports` facevano update/insert/delete senza
+controllare l'errore, aggiornando comunque la UI in modo ottimista.
+
+**Fix:** `reportError` su tutte le scritture; Automazioni aggiorna lo stato locale
+solo dopo successo DB.
+
+### Bug O — LoginSplash: bottone Accedi restava in loading ➜ FIXATO
+
+**Stato:** 🟢 **Risolto** in `src/components/LoginSplash.tsx`.
+
+**Cosa era:** `setLoading(false)` solo nel `catch`. Se il login Auth riusciva ma
+l'account non era collegato a un operatore, si restava sul form con lo spinner
+bloccato.
+
+**Fix:** `finally { setLoading(false) }`.
+
+### Bug C follow-up — test sessione persistente riattivato
+
+Il test `sessione persistente: dopo reload resto loggato` non è più `fixme`
+(il fix useAuth è in main). Va rieseguito contro produzione dopo deploy di
+questi ulteriori fix.

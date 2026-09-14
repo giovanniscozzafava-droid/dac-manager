@@ -21,12 +21,8 @@ test.describe('Auth', () => {
     ).toBeVisible({ timeout: 10_000 });
   });
 
-  test.fixme('sessione persistente: dopo reload resto loggato', async ({ page }) => {
-    // FIXME BUG: dopo F5/reload l'app resta bloccata sullo splash "Caricamento..."
-    // anche se la sessione è in localStorage (chiave `dac-auth`, JWT valido).
-    // useAuth.init() chiama getSession() ma loading non scende mai a false.
-    // Riproducibile su https://dac-manager.vercel.app dopo qualsiasi login + reload.
-    // Vedi tests/BUGS_FOUND.md per dettagli.
+  test('sessione persistente: dopo reload resto loggato', async ({ page }) => {
+    // Bug C: era bloccato su "Caricamento..." al F5 — fix in useAuth (watchdog + onAuthStateChange).
     await loginViaUI(page);
     await page.reload();
     await expect(

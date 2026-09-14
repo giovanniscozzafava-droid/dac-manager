@@ -528,7 +528,9 @@ function PazienteForm({ paziente, onClose, onSaved }: {
         noshow_count: 0,
         data_prima_visita: format(new Date(), 'yyyy-MM-dd'),
       })
-      if (insErr) { alert('Errore salvataggio paziente: ' + insErr.message); setSaving(false); return }
+      if (insErr) {
+        if (!reportError('salvataggio paziente', insErr)) { setSaving(false); return }
+      }
     }
 
     setSaving(false)

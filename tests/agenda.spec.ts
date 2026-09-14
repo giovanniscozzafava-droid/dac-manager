@@ -93,6 +93,33 @@ test.describe('Agenda', () => {
     expect(ricavi2?.length, 'dopo 2° complete deve restare 1 sola riga (no duplicati)').toBe(1);
   });
 
+  test('REGRESSIONE: stati definitivi non si possono più modificare via UI', async ({ authedPage: page }) => {
+    const tag = makeTestTag('AGN_IRR');
+    tags.push(tag);
+    const oggi = new Date().toISOString().slice(0, 10);
+    const { data: app, error } = await sb.from('appuntamenti').insert({
+      paziente_nome: tag + ' Irr',
+      servizio_nome: 'Visita prova',
+      operatore_nome: 'Teresa',
+      data: oggi,
+      ora: '10:00',
+      durata_minuti: 30,
+      stato: 'Completato',
+      importo: 40,
+      colonna_agenda: 2,
+      note: tag,
+    }).select().single();
+    expect(error, JSON.stringify(error)).toBeNull();
+    createdAppIds.push(app!.id);
+
+    await navigateViaSidebar(page, /Agenda/i);
+    await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();
+    // Click sull'appuntamento di test nella griglia (paziente_nome contiene il tag)
+    await page.getByText(tag + ' Irr').first().click();
+    await expect(page.getByText(/Stato definitivo/i)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByRole('button', { name: /Elimina Appuntamento/i })).toHaveCount(0);
+  });
+
   test('REGRESSIONE bug #3: tab switch non azzera l\'agenda', async ({ authedPage: page }) => {
     await navigateViaSidebar(page, /Agenda/i);
     await expect(page.getByRole('heading', { name: 'Agenda' })).toBeVisible();

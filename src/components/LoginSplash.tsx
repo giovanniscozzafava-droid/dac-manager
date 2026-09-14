@@ -25,6 +25,10 @@ export default function LoginSplash({ onLogin, authError }: Props) {
     try {
       await onLogin(email, password);
     } catch {
+      // errore gestito via authError dal parent
+    } finally {
+      // Se il login fallisce restiamo sul form; se riesce App smonta questo componente.
+      // In entrambi i casi (anche account senza operatore) dobbiamo sbloccare il bottone.
       setLoading(false);
     }
   }
