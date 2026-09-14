@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { Operatore } from '@/hooks/useAuth'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths, eachMonthOfInterval, subYears } from 'date-fns'
@@ -6,13 +6,21 @@ import { it } from 'date-fns/locale'
 import {
   TrendingUp, TrendingDown, DollarSign, BarChart3, PieChart,
   ChevronLeft, ChevronRight, ArrowUpRight, ArrowDownRight,
-  Wallet, Building2, Activity, Target, Download
+  Wallet, Building2, Activity, Target, Download, FileText, Table2
 } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, PieChart as RPieChart, Pie, Cell,
   AreaChart, Area, Legend
 } from 'recharts'
+import {
+  exportAccountingPdf,
+  exportCostiCsv,
+  exportRicaviCsv,
+  exportRiepilogoCsv,
+  exportLaboratorioCsv,
+  aggregateMetodi,
+} from '@/lib/reports'
 
 interface Props { operatore: Operatore }
 
@@ -35,6 +43,8 @@ export function ContabilitaPage({ operatore }: Props) {
   const [costi, setCosti] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [annuale, setAnnuale] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
+  const exportRef = useRef<HTMLDivElement>(null)
 
   // Range: mese corrente o anno
   const inizio = annuale ? format(new Date(mese.getFullYear(), 0, 1), 'yyyy-MM-dd') : format(mese, 'yyyy-MM-dd')
@@ -114,6 +124,51 @@ export function ContabilitaPage({ operatore }: Props) {
     { id: 'cashflow' as const, label: '💸 Cash Flow', icon: Wallet },
   ]
 
+  const periodoLabel = annuale
+    ? String(mese.getFullYear())
+    : format(mese, 'MMMM yyyy', { locale: it })
+  const periodoSlug = annuale
+    ? String(mese.getFullYear())
+    : format(mese, 'yyyy-MM')
+
+  useEffect(() => {
+    if (!exportOpen) return
+    const onDoc = (e: MouseEvent) => {
+      if (exportRef.current && !exportRef.current.contains(e.target as Node)) setExportOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [exportOpen])
+
+  function buildSnapshot() {
+    return {
+      periodoLabel,
+      inizio,
+      fine,
+      operatoreNome: operatore.nome,
+      totRicavi,
+      totCosti,
+      margine,
+      nTransazioni: ricaviPeriodo.length,
+      perReparto: perReparto.map(r => ({ name: r.name, value: r.value })),
+      costiPerCat,
+      perMetodo: aggregateMetodi(ricaviPeriodo),
+      trend: trendData,
+      ricavi: ricaviPeriodo,
+      costi: costiPeriodo,
+    }
+  }
+
+  function runExport(kind: 'pdf' | 'riepilogo' | 'ricavi' | 'costi' | 'lab') {
+    const snap = buildSnapshot()
+    if (kind === 'pdf') exportAccountingPdf(snap, periodoSlug)
+    else if (kind === 'riepilogo') exportRiepilogoCsv(snap, periodoSlug)
+    else if (kind === 'ricavi') exportRicaviCsv(snap.ricavi, periodoSlug)
+    else if (kind === 'costi') exportCostiCsv(snap.costi, periodoSlug)
+    else exportLaboratorioCsv(snap.ricavi, periodoSlug)
+    setExportOpen(false)
+  }
+
   return (
     <div className="h-full flex flex-col overflow-hidden">
       {/* Header */}
@@ -124,6 +179,63 @@ export function ContabilitaPage({ operatore }: Props) {
             <h1 className="font-display font-bold text-lg text-white">Contabilità</h1>
           </div>
           <div className="flex items-center gap-2">
+            {/* Esporta report */}
+            <div className="relative" ref={exportRef}>
+              <button
+                onClick={() => setExportOpen(o => !o)}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-semibold bg-dac-accent text-white hover:opacity-90 disabled:opacity-40"
+              >
+                <Download size={13} /> Esporta report
+              </button>
+              {exportOpen && (
+                <div className="absolute right-0 top-full mt-1 z-30 w-64 rounded-xl border border-white/10 bg-dac-deep shadow-2xl py-1 overflow-hidden">
+                  <p className="px-3 py-1.5 text-[9px] uppercase tracking-wider text-dac-gray-500 font-semibold">
+                    Periodo: {periodoLabel}
+                  </p>
+                  <button onClick={() => runExport('pdf')}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-white hover:bg-white/5 text-left">
+                    <FileText size={14} className="text-dac-accent" />
+                    <span>
+                      <span className="font-semibold block">PDF per amministrazione</span>
+                      <span className="text-[10px] text-dac-gray-500">KPI, reparti, costi, metodi</span>
+                    </span>
+                  </button>
+                  <button onClick={() => runExport('riepilogo')}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-white hover:bg-white/5 text-left">
+                    <Table2 size={14} className="text-dac-green" />
+                    <span>
+                      <span className="font-semibold block">CSV riepilogo</span>
+                      <span className="text-[10px] text-dac-gray-500">Apribile in Excel / gestionale</span>
+                    </span>
+                  </button>
+                  <button onClick={() => runExport('ricavi')}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-white hover:bg-white/5 text-left">
+                    <TrendingUp size={14} className="text-dac-green" />
+                    <span>
+                      <span className="font-semibold block">CSV dettaglio ricavi</span>
+                      <span className="text-[10px] text-dac-gray-500">{ricaviPeriodo.length} righe</span>
+                    </span>
+                  </button>
+                  <button onClick={() => runExport('costi')}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-white hover:bg-white/5 text-left">
+                    <TrendingDown size={14} className="text-dac-red" />
+                    <span>
+                      <span className="font-semibold block">CSV dettaglio costi</span>
+                      <span className="text-[10px] text-dac-gray-500">{costiPeriodo.length} righe</span>
+                    </span>
+                  </button>
+                  <button onClick={() => runExport('lab')}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-xs text-white hover:bg-white/5 text-left border-t border-white/5">
+                    <Building2 size={14} className="text-[#3498db]" />
+                    <span>
+                      <span className="font-semibold block">CSV Laboratorio</span>
+                      <span className="text-[10px] text-dac-gray-500">Per gestionale analisi cliniche</span>
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
             {/* Toggle mensile/annuale */}
             <div className="flex rounded-lg bg-white/5 p-0.5">
               <button onClick={() => setAnnuale(false)} className={`px-3 py-1 rounded-md text-[10px] font-semibold transition-all ${!annuale ? 'bg-dac-accent text-white' : 'text-dac-gray-400'}`}>Mese</button>

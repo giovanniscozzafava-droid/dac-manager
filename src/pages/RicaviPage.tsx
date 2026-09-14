@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { reportError } from '@/lib/db'
+import { exportRicaviCsv } from '@/lib/reports'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { DollarSign, Plus, X, Check, Search, ChevronLeft, ChevronRight, Trash2, TrendingUp } from 'lucide-react'
+import { DollarSign, Plus, X, Check, Search, ChevronLeft, ChevronRight, Trash2, TrendingUp, Download } from 'lucide-react'
 
 interface Ricavo { id: string; codice: string; data: string; paziente_nome: string | null; servizio_nome: string; reparto: string | null; operatore_nome: string | null; importo: number; metodo: string | null; note: string | null }
 interface Props { operatore: Operatore }
@@ -50,7 +51,16 @@ export function RicaviPage({ operatore }: Props) {
             <DollarSign size={18} className="text-dac-green" />
             <h1 className="font-display font-bold text-lg text-white">Ricavi</h1>
           </div>
-          <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-dac-green text-white hover:opacity-90"><Plus size={14} /> Nuovo</button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => exportRicaviCsv(filtered, format(mese, 'yyyy-MM'))}
+              disabled={filtered.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 text-white hover:bg-white/10 disabled:opacity-40"
+            >
+              <Download size={13} /> CSV
+            </button>
+            <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-dac-green text-white hover:opacity-90"><Plus size={14} /> Nuovo</button>
+          </div>
         </div>
         {/* Navigazione mese */}
         <div className="flex items-center gap-3 mt-3">

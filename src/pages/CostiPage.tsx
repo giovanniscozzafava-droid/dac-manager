@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { reportError } from '@/lib/db'
+import { exportCostiCsv } from '@/lib/reports'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from 'date-fns'
 import { it } from 'date-fns/locale'
-import { TrendingDown, Plus, X, Check, Search, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import { TrendingDown, Plus, X, Check, Search, ChevronLeft, ChevronRight, Trash2, Download } from 'lucide-react'
 
 interface Costo { id: string; codice: string; data: string; categoria: string; descrizione: string; importo: number; fornitore: string | null; metodo: string | null; trigger_da: string | null; note: string | null }
 interface Props { operatore: Operatore }
@@ -50,7 +51,16 @@ export function CostiPage({ operatore }: Props) {
             <TrendingDown size={18} className="text-dac-red" />
             <h1 className="font-display font-bold text-lg text-white">Costi</h1>
           </div>
-          <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-dac-red text-white hover:opacity-90"><Plus size={14} /> Nuovo</button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => exportCostiCsv(filtered, format(mese, 'yyyy-MM'))}
+              disabled={filtered.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 text-white hover:bg-white/10 disabled:opacity-40"
+            >
+              <Download size={13} /> CSV
+            </button>
+            <button onClick={() => setShowForm(true)} className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-dac-red text-white hover:opacity-90"><Plus size={14} /> Nuovo</button>
+          </div>
         </div>
         <div className="flex items-center gap-3 mt-3">
           <button onClick={() => setMese(m => subMonths(m, 1))} className="p-1.5 rounded-lg hover:bg-white/5 text-dac-gray-400"><ChevronLeft size={16} /></button>
