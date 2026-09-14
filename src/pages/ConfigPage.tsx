@@ -5,7 +5,7 @@ import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import {
   Settings, Users, ListChecks, Zap, Package, Building2,
-  Plus, X, Check, Edit3, Trash2, Save, ToggleLeft, ToggleRight
+  Plus, X, Check, Edit3, Trash2, Save, ToggleLeft, ToggleRight, Cable
 } from 'lucide-react'
 
 interface Props { operatore: Operatore }
@@ -14,7 +14,7 @@ interface Props { operatore: Operatore }
 // MAIN
 // ═══════════════════════════════════════════════════════════
 export function ConfigPage({ operatore }: Props) {
-  const [tab, setTab] = useState<'operatori' | 'hr' | 'servizi' | 'pacchetti' | 'automazioni' | 'struttura' | 'email'>('operatori')
+  const [tab, setTab] = useState<'operatori' | 'hr' | 'servizi' | 'pacchetti' | 'automazioni' | 'struttura' | 'email' | 'integrazioni'>('operatori')
 
   const TABS = [
     { id: 'operatori' as const, label: '👥 Operatori', icon: Users },
@@ -23,6 +23,7 @@ export function ConfigPage({ operatore }: Props) {
     { id: 'pacchetti' as const, label: '📦 Pacchetti Predefiniti', icon: Package },
     { id: 'automazioni' as const, label: '⚡ Automazioni', icon: Zap },
     { id: 'struttura' as const, label: '🏥 Struttura', icon: Building2 },
+    { id: 'integrazioni' as const, label: '🔌 Integrazioni', icon: Cable },
     { id: 'email' as const, label: '📧 Email', icon: Settings },
   ]
 
@@ -44,7 +45,14 @@ export function ConfigPage({ operatore }: Props) {
         </div>
       </div>
       <div className="flex-1 overflow-auto p-4 lg:p-6">
-        {tab === 'operatori' ? <OperatoriTab /> : tab === 'hr' ? <HRPlaceholder /> : tab === 'automazioni' ? <AutomazioniPanel /> : tab === 'servizi' ? <ServiziTab /> : tab === 'pacchetti' ? <PacchettiPredTab /> : tab === 'email' ? <EmailConfigTab /> : <StrutturaTab />}
+        {tab === 'operatori' ? <OperatoriTab />
+          : tab === 'hr' ? <HRPlaceholder />
+          : tab === 'automazioni' ? <AutomazioniPanel />
+          : tab === 'servizi' ? <ServiziTab />
+          : tab === 'pacchetti' ? <PacchettiPredTab />
+          : tab === 'integrazioni' ? <IntegrazioniTab />
+          : tab === 'email' ? <EmailConfigTab />
+          : <StrutturaTab />}
       </div>
     </div>
   )
@@ -461,6 +469,92 @@ function HRPlaceholder() {
   return <div className="text-center py-16 text-dac-gray-500"><div className="text-4xl mb-3">💼</div><div className="text-sm">Contratti HR — in sviluppo</div></div>
 }
 
+function IntegrazioniTab() {
+  const [rows, setRows] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [schemaReady, setSchemaReady] = useState(true)
+
+  const FALLBACK = [
+    { id: 'lab_main', system: 'lab', display_name: 'Laboratorio analisi', status: 'disabled', environment: 'sandbox', config: { notes: 'LIS — esami e referti' } },
+    { id: 'clinic_main', system: 'clinic', display_name: 'Gestionale cliniche', status: 'disabled', environment: 'sandbox', config: { notes: 'Cartella / visite' } },
+    { id: 'pharmacy_main', system: 'pharmacy', display_name: 'Gestionale parafarmacia', status: 'disabled', environment: 'sandbox', config: { notes: 'SoT vendite e stock' } },
+    { id: 'invoicing_fic', system: 'invoicing', display_name: 'Fatture in Cloud', status: 'disabled', environment: 'sandbox', config: { provider: 'fattureincloud' } },
+  ]
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      const { data, error } = await supabase
+        .from('integration_connections')
+        .select('*')
+        .order('system')
+      if (cancelled) return
+      if (error) {
+        setSchemaReady(false)
+        setRows(FALLBACK)
+      } else {
+        setSchemaReady(true)
+        setRows(data?.length ? data : FALLBACK)
+      }
+      setLoading(false)
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const statusColor: Record<string, string> = {
+    disabled: 'text-dac-gray-400 bg-white/5',
+    configured: 'text-amber-400 bg-amber-400/10',
+    active: 'text-dac-green bg-dac-green/10',
+    error: 'text-dac-red bg-dac-red/10',
+  }
+
+  const systemIcon: Record<string, string> = {
+    lab: '🔬', clinic: '🏥', pharmacy: '💊', invoicing: '🧾', email: '📧',
+  }
+
+  return (
+    <div className="space-y-4 animate-fade-in max-w-3xl">
+      <div className="px-4 py-3 rounded-xl bg-dac-accent/5 border border-dac-accent/10">
+        <p className="text-xs text-dac-gray-300 leading-relaxed">
+          DAC diventa <strong className="text-white">hub operativo</strong>: anagrafica paziente, agenda e orchestrazione eventi.
+          Lab, cliniche, parafarmacia e fatturazione restano source of truth del proprio dominio e si collegano via API.
+          Doc: <code className="text-[10px] text-dac-accent">docs/architecture/</code>
+        </p>
+      </div>
+      {!schemaReady && (
+        <div className="px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/5 text-xs text-amber-200">
+          Tabelle integrazione non ancora sul DB. Esegui <code className="text-[10px]">sql/integrations_foundation.sql</code> su Supabase.
+        </div>
+      )}
+      {loading ? (
+        <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <div key={i} className="h-16 rounded-xl bg-white/3 animate-pulse" />)}</div>
+      ) : (
+        <div className="space-y-2">
+          {rows.map((r: any) => (
+            <div key={r.id} className="flex items-center gap-4 px-4 py-3 rounded-xl border border-white/5 bg-dac-card/50">
+              <div className="text-2xl">{systemIcon[r.system] || '🔌'}</div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-white">{r.display_name}</div>
+                <div className="text-[10px] text-dac-gray-400 truncate">
+                  {r.system} · {r.environment}
+                  {r.config?.notes ? ` · ${r.config.notes}` : ''}
+                  {r.config?.provider ? ` · ${r.config.provider}` : ''}
+                </div>
+              </div>
+              <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full ${statusColor[r.status] || statusColor.disabled}`}>
+                {r.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="text-[10px] text-dac-gray-500">
+        Fase 0: solo stato. Secret API solo in Edge Functions. Prossimi: MPI sync → FiC su billable events → vendite parafarmacia → ordini LIS.
+      </div>
+    </div>
+  )
+}
 
 // ═══════════════════════════════════════════════════════════
 // TAB EMAIL CONFIG
