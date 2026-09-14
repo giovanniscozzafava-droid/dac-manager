@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import { Zap, Search, ChevronDown, ChevronRight, ToggleLeft, ToggleRight, Save, Check, Settings, Info } from 'lucide-react'
 
 interface Automazione {
@@ -36,16 +37,18 @@ export function AutomazioniPanel() {
 
   // Toggle on/off
   async function toggleAttivo(id: string, attivo: boolean) {
-    await supabase.from('automazioni').update({ attivo: !attivo }).eq('id', id)
+    const { error } = await supabase.from('automazioni').update({ attivo: !attivo }).eq('id', id)
+    if (!reportError('aggiornamento automazione', error)) return
     setItems(prev => prev.map(a => a.id === id ? { ...a, attivo: !attivo } : a))
   }
 
   // Salva parametri
   async function salvaParametri(id: string, parametri: Record<string, any>) {
     setSavingParams(id)
-    await supabase.from('automazioni').update({ parametri }).eq('id', id)
-    setItems(prev => prev.map(a => a.id === id ? { ...a, parametri } : a))
+    const { error } = await supabase.from('automazioni').update({ parametri }).eq('id', id)
     setSavingParams(null)
+    if (!reportError('salvataggio parametri automazione', error)) return
+    setItems(prev => prev.map(a => a.id === id ? { ...a, parametri } : a))
     setSavedMsg(id)
     setTimeout(() => setSavedMsg(''), 1500)
   }
@@ -53,7 +56,8 @@ export function AutomazioniPanel() {
   // Attiva/disattiva tutte per engine
   async function toggleEngine(engine: string, attiva: boolean) {
     const ids = items.filter(a => a.engine === engine).map(a => a.id)
-    await supabase.from('automazioni').update({ attivo: attiva }).in('id', ids)
+    const { error } = await supabase.from('automazioni').update({ attivo: attiva }).in('id', ids)
+    if (!reportError('aggiornamento automazioni engine', error)) return
     setItems(prev => prev.map(a => ids.includes(a.id) ? { ...a, attivo: attiva } : a))
   }
 

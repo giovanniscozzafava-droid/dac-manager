@@ -494,11 +494,24 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
     const ivato = Number(totaleIvato.toFixed(2))
     const netto = Number(totaleNetto.toFixed(2))
     const iva = Number(totaleIva.toFixed(2))
+    const qtyBefore = articolo.quantita
 
-    const { error: e1 } = await supabase.from('inventario_presidio').update({
-      quantita: articolo.quantita - quantita,
-      updated_at: new Date().toISOString()
-    }).eq('id', articolo.id)
+    // Update condizionale: fallisce se stock già sceso sotto la qty (race / doppio click)
+    const { data: updatedRows, error: e1 } = await supabase
+      .from('inventario_presidio')
+      .update({
+        quantita: qtyBefore - quantita,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', articolo.id)
+      .gte('quantita', quantita)
+      .select('id')
+
+    if (e1 || !updatedRows?.length) {
+      setSaving(false)
+      alert(e1?.message || 'Stock insufficiente o già aggiornato. Ricarica e riprova.')
+      return
+    }
 
     const { error: e2 } = await supabase.from('presidio_scarichi').insert({
       articolo_id: articolo.id,
@@ -515,10 +528,22 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
       aliquota_iva: aliquota,
     })
 
+    if (e2) {
+      // Compensa lo stock se il log scarico fallisce
+      await supabase.from('inventario_presidio').update({
+        quantita: qtyBefore,
+        updated_at: new Date().toISOString(),
+      }).eq('id', articolo.id)
+      setSaving(false)
+      alert('Errore registrazione scarico: ' + e2.message)
+      return
+    }
+
     let e3: any = null
     if (ivato > 0) {
       const descrizione = `Consumo Presidio - ${articolo.nome} (${quantita} ${articolo.unita_misura})${pazSelezionato ? ` - ${pazSelezionato.cognome} ${pazSelezionato.nome}` : ''}${motivo ? ` - ${motivo}` : ''}`
       const res = await supabase.from('costi').insert({
+        codice: 'CST-' + format(new Date(), 'yyMMddHHmmss'),
         data: new Date().toISOString().split('T')[0],
         categoria: 'Consumo Presidio',
         descrizione,
@@ -532,7 +557,6 @@ function ScaricoModal({ articolo, operatore, onClose, onSaved }:
     }
 
     setSaving(false)
-    if (e1 || e2) { alert('Errore: ' + (e1?.message || e2?.message)); return }
     if (e3) { alert('Scarico OK ma errore registrazione costo: ' + e3.message) }
     onSaved()
   }

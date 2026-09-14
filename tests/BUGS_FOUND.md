@@ -248,3 +248,96 @@ identico al precedente. Solo in caso di blocco l'app smette di restare bloccata.
 e dovrebbe passare verde.
 
 **Da fare (utente):** `git commit` + `git push` → Vercel deploya auto. Poi togliere fixme dal test.
+
+---
+
+## Bug trovati in passata QA 2026-09-14 (test / debug / improve)
+
+### Bug L — Agenda: scritture senza error handling ➜ FIXATO
+
+**Stato:** 🟢 **Risolto** in `src/pages/Agenda.tsx`.
+
+**Cosa era:** `cambiaStato`, `insert` nuovo appuntamento e `delete` non controllavano `error`.
+Se il trigger di completamento falliva (o RLS/rete), la UI chiudeva il pannello e
+ricaricava come se l'operazione fosse riuscita — utente non vedeva l'errore e i
+ricavi non venivano creati.
+
+**Fix:** tutte le scritture usano `reportError`; in caso di errore si interrompe
+il flusso (pannello resta / form non si chiude).
+
+### Bug M — Stati "irreversibili" in Agenda non erano davvero irreversibili ➜ FIXATO
+
+**Stato:** 🟢 **Risolto** in `src/pages/Agenda.tsx`.
+
+**Cosa era:** il confirm diceva "Azione irreversibile" per Completato/No-show, ma
+poi si poteva cambiare di nuovo lo stato (anche da Completato → Prenotato) e
+eliminare l'appuntamento. Rischio di inconsistenza con ricavi/recall già generati.
+
+**Fix:** `STATI_IRREVERSIBILI = Completato | No-show | Cancellato`. Da questi stati
+non si può più cambiare né eliminare; la UI mostra messaggio esplicito.
+
+**Test:** `tests/agenda.spec.ts` — *REGRESSIONE: stati definitivi non si possono più modificare via UI*.
+
+### Bug N — Config / Automazioni / BugReports: scritture silenziose ➜ FIXATO
+
+**Stato:** 🟢 **Risolto**.
+
+**Cosa era:** `ConfigPage` (operatori/servizi/pacchetti), `AutomazioniPanel` e
+aggiornamenti stato/note in `BugReports` facevano update/insert/delete senza
+controllare l'errore, aggiornando comunque la UI in modo ottimista.
+
+**Fix:** `reportError` su tutte le scritture; Automazioni aggiorna lo stato locale
+solo dopo successo DB.
+
+### Bug O — LoginSplash: bottone Accedi restava in loading ➜ FIXATO
+
+**Stato:** 🟢 **Risolto** in `src/components/LoginSplash.tsx`.
+
+**Cosa era:** `setLoading(false)` solo nel `catch`. Se il login Auth riusciva ma
+l'account non era collegato a un operatore, si restava sul form con lo spinner
+bloccato.
+
+**Fix:** `finally { setLoading(false) }`.
+
+### Bug C follow-up — test sessione persistente riattivato
+
+Il test `sessione persistente: dopo reload resto loggato` non è più `fixme`
+(il fix useAuth è in main). Va rieseguito contro produzione dopo deploy di
+questi ulteriori fix.
+
+### Bug P — Cassa parafarmacia UI senza IVA (regressione bug A dal path UI) ➜ FIXATO
+
+**Stato:** 🟢 **Risolto** in `ParafarmaciaPage.tsx` CassaForm.
+
+**Cosa era:** il form cassa salvava solo importo; `imponibile`/`aliquota_iva`/`iva`
+NULL → mirror ricavi/costi a IVA 0% nonostante il trigger corretto.
+
+**Fix:** select aliquota + calcolo imponibile/IVA nel payload; lista mostra descrizione.
+
+### Bug Q — useAuth race post-await + timeout mascherato ➜ FIXATO
+
+**Stato:** 🟢 **Risolto** in `useAuth.ts`.
+
+**Cosa era:** dopo `matchOperatore` un logout poteva essere sovrascritto dal callback
+stale; timeout/rete mostravano "Account non associato".
+
+**Fix:** generation counter + check `mounted`; `MatchResult` distingue not-found vs errore rete.
+
+### Bug R — Presidio scarico non atomico / costi senza codice ➜ FIXATO
+
+**Stato:** 🟢 **Risolto** in `PresidioPage.tsx`.
+
+**Fix:** update stock con `.gte('quantita', q)` + rollback se insert scarico fallisce;
+`codice` su insert costi.
+
+### Bug S — Contabilità annuale: variazioni vs mese invece che YoY ➜ FIXATO
+
+**Fix:** in modalità Anno confronta con l'anno precedente e carica 2 anni di dati.
+
+### Bug T — CF: secolo ambiguo (1920→2020) ➜ MITIGATO
+
+**Fix:** euristica età band 14–100; se ambiguo (es. 6 vs 106) preferisci anziano in clinica.
+
+### Bug U — Pacchetti double-click seduta ➜ FIXATO
+
+**Fix:** optimistic lock `.eq('sedute_fatte', pkg.sedute_fatte)`.

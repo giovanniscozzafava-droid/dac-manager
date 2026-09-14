@@ -38,6 +38,16 @@ test.describe('Contabilità (Report)', () => {
     expect(found, `attendo TOTALE RICAVI ≈ ${totaleFormatted} in pagina`).toBe(true);
   });
 
+  test('mostra il pulsante Esporta report', async ({ authedPage: page }) => {
+    await navigateViaSidebar(page, /Report/);
+    await expect(page.getByRole('heading', { name: 'Contabilità' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Esporta report/i })).toBeVisible();
+    await page.getByRole('button', { name: /Esporta report/i }).click();
+    await expect(page.getByText(/PDF per amministrazione/i)).toBeVisible();
+    await expect(page.getByText(/CSV riepilogo/i)).toBeVisible();
+    await expect(page.getByText(/CSV Laboratorio/i)).toBeVisible();
+  });
+
   test('REGRESSIONE bug #3: tab switch non azzera la contabilità', async ({ authedPage: page }) => {
     await navigateViaSidebar(page, /Report/);
     await expect(page.getByRole('heading', { name: 'Contabilità' })).toBeVisible();
