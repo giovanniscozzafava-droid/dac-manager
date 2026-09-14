@@ -143,7 +143,26 @@ function RicavoForm({ operatore, onClose, onSaved }: { operatore: Operatore; onC
   async function salva() {
     if (!servizio.trim() || !importo) return
     setSaving(true)
-    const { error } = await supabase.from('ricavi').insert({ codice: 'RIC-' + format(new Date(), 'yyMMddHHmmss'), data, paziente_nome: paziente || null, servizio_nome: servizio, reparto: reparto || null, operatore_nome: operatore.nome, importo, metodo, note: note || null })
+    const base = {
+      codice: 'RIC-' + format(new Date(), 'yyMMddHHmmss'),
+      data,
+      paziente_nome: paziente || null,
+      servizio_nome: servizio,
+      reparto: reparto || null,
+      operatore_nome: operatore.nome,
+      importo,
+      metodo,
+      note: note || null,
+    }
+    let { error } = await supabase.from('ricavi').insert({
+      ...base,
+      source_system: 'dac',
+      invoice_status: 'none',
+    })
+    // Colonne integrazione non ancora migrate → fallback senza source
+    if (error && /source_system|invoice_status|schema cache|column/i.test(error.message)) {
+      ;({ error } = await supabase.from('ricavi').insert(base))
+    }
     setSaving(false)
     if (!reportError('salvataggio ricavo', error)) return
     onSaved()

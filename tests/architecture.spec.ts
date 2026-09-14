@@ -4,6 +4,9 @@ import {
   stubLabAdapter,
   stubInvoicingAdapter,
   lineFromGross,
+  enqueueOutbox,
+  enqueuePatientUpserted,
+  enqueueAppointmentLifecycle,
 } from '../src/integrations';
 
 test.describe('Domain + integration ports', () => {
@@ -34,5 +37,21 @@ test.describe('Domain + integration ports', () => {
       idempotencyKey: 'test-1',
     });
     expect(res.externalDocumentId).toBeTruthy();
+  });
+
+  test('API outbox esportate (fondamenta Fase 0)', () => {
+    expect(typeof enqueueOutbox).toBe('function');
+    expect(typeof enqueuePatientUpserted).toBe('function');
+    expect(typeof enqueueAppointmentLifecycle).toBe('function');
+  });
+
+  test('enqueueOutbox rifiuta system=dac', async () => {
+    const ok = await enqueueOutbox({
+      system: 'dac' as any,
+      eventType: 'PatientUpserted',
+      aggregateType: 'patient',
+      payload: {},
+    });
+    expect(ok).toBe(false);
   });
 });

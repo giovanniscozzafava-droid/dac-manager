@@ -56,4 +56,24 @@ Senza confini chiari si rischia: doppi pazienti, doppie vendite, IVA incoerente,
 - `src/domain/` — tipi dominio e ID canonici
 - `src/integrations/ports/` — interfacce adapter (contratti)
 - `src/integrations/events/` — eventi di dominio
-- `sql/integrations_foundation.sql` — tabelle `integration_*` + outbox
+- `src/integrations/outbox.ts` — enqueue best-effort (pazienti, agenda)
+- `src/integrations/adapters/` — stub vendor
+- `sql/integrations_foundation.sql` — tabelle `integration_*` + colonne source
+- `sql/integrations_tag_sources.sql` — backfill + `v_billable_events`
+- `supabase/functions/integration-outbox-worker/` — drain outbox (stub)
+
+### Ordine deploy SQL
+1. `sql/integrations_foundation.sql`
+2. `sql/integrations_tag_sources.sql`
+
+### Predisposizione runtime (Fase 0 → 1)
+
+| Componente | Stato | Azione operativa |
+|---|---|---|
+| Outbox enqueue da UI | Pronto (best-effort) | Nessuna: se schema assente non blocca |
+| Config → Integrazioni | UI read-only | Dopo SQL mostra seed da `integration_connections` |
+| Worker Edge | Stub | Deploy + cron; `INTEGRATIONS_STUB_SEND=true` in sandbox |
+| Adapter FiC / LIS / … | Stub TypeScript | Implementare in Edge, non in Vite |
+| Report CSV ricavi | Include `source_system` | Utile dopo backfill tag_sources |
+
+Prossima priorità consigliata: **Fatture in Cloud** su eventi `v_billable_events` (Fase 2), dopo MPI mapping (Fase 1).

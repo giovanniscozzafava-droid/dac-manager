@@ -134,7 +134,20 @@ function CostoForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => v
   async function salva() {
     if (!descrizione.trim() || !importo) return
     setSaving(true)
-    const { error } = await supabase.from('costi').insert({ codice: 'CST-' + format(new Date(), 'yyMMddHHmmss'), data, categoria, descrizione: descrizione.trim(), importo, fornitore: fornitore || null, metodo, note: note || null })
+    const base = {
+      codice: 'CST-' + format(new Date(), 'yyMMddHHmmss'),
+      data,
+      categoria,
+      descrizione: descrizione.trim(),
+      importo,
+      fornitore: fornitore || null,
+      metodo,
+      note: note || null,
+    }
+    let { error } = await supabase.from('costi').insert({ ...base, source_system: 'dac' })
+    if (error && /source_system|schema cache|column/i.test(error.message)) {
+      ;({ error } = await supabase.from('costi').insert(base))
+    }
     setSaving(false)
     if (!reportError('salvataggio costo', error)) return
     onSaved()

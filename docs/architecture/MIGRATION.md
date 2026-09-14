@@ -2,15 +2,21 @@
 
 Obiettivo: arrivare alle API esterne **senza spegnere** l’operatività quotidiana di Palazzo della Salute.
 
-## Fase 0 — Fondamenta (questa PR / scaffold)
+## Fase 0 — Fondamenta (in corso su questa PR)
 
 - [x] Documentazione AS-IS / TARGET / INTEGRATIONS  
 - [x] Tipi dominio + port TypeScript  
 - [x] SQL `integration_connections`, `integration_external_ids`, `integration_outbox`, `integration_inbox`  
-- [ ] Aggiungere a `ricavi`/`costi` (o nuova `billable_events`) colonne `source_system`, `source_external_id`, `invoice_status`  
-- [ ] Config UI “Integrazioni” (solo stato connessione, no secret in chiaro)
+- [x] Colonne `source_system` / `invoice_*` su `ricavi`/`costi` + view `v_billable_events`  
+- [x] Helper `enqueueOutbox` / `enqueuePatientUpserted` / `enqueueAppointmentLifecycle`  
+- [x] Hook UI: salvataggio paziente, completamento agenda (best-effort)  
+- [x] Tag `source_system` su insert manuali ricavi/costi (con fallback se colonne assenti)  
+- [x] Edge stub `integration-outbox-worker`  
+- [x] Config UI “Integrazioni”  
+- [ ] Applicare SQL su Supabase produzione  
+- [ ] Schedulare worker + `INTEGRATIONS_STUB_SEND` in sandbox  
 
-**Criterio di uscita:** schema deployato; nessun comportamento utente cambiato.
+**Criterio di uscita:** schema deployato; outbox si riempie; worker gira in stub; UX invariata se schema assente.
 
 ## Fase 1 — MPI + mapping ID
 

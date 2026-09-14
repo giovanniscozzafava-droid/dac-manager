@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { reportError } from '@/lib/db'
+import { enqueuePatientUpserted } from '@/integrations/outbox'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
@@ -534,17 +535,38 @@ function PazienteForm({ paziente, onClose, onSaved }: {
     if (isEdit) {
       const { error: updErr } = await supabase.from('pazienti').update(payload).eq('id', paziente!.id)
       if (!reportError('modifica paziente', updErr)) { setSaving(false); return }
+      void enqueuePatientUpserted({
+        id: paziente!.id,
+        nome: payload.nome,
+        cognome: payload.cognome,
+        codice_fiscale: payload.codice_fiscale,
+        email: payload.email,
+        telefono: payload.telefono,
+        sesso: payload.sesso,
+        data_nascita: payload.data_nascita,
+      })
     } else {
       const codice = 'PAZ-' + format(new Date(), 'yyMMddHHmmss')
-      const { error: insErr } = await supabase.from('pazienti').insert({
+      const { data: created, error: insErr } = await supabase.from('pazienti').insert({
         ...payload,
         codice,
         gdpr: 'mancante',
         noshow_count: 0,
         data_prima_visita: format(new Date(), 'yyyy-MM-dd'),
-      })
+      }).select('id').single()
       if (insErr) {
         if (!reportError('salvataggio paziente', insErr)) { setSaving(false); return }
+      } else if (created?.id) {
+        void enqueuePatientUpserted({
+          id: created.id,
+          nome: payload.nome,
+          cognome: payload.cognome,
+          codice_fiscale: payload.codice_fiscale,
+          email: payload.email,
+          telefono: payload.telefono,
+          sesso: payload.sesso,
+          data_nascita: payload.data_nascita,
+        })
       }
     }
 

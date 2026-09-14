@@ -524,7 +524,9 @@ function IntegrazioniTab() {
       </div>
       {!schemaReady && (
         <div className="px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/5 text-xs text-amber-200">
-          Tabelle integrazione non ancora sul DB. Esegui <code className="text-[10px]">sql/integrations_foundation.sql</code> su Supabase.
+          Tabelle integrazione non ancora sul DB. Su Supabase esegui in ordine{' '}
+          <code className="text-[10px]">sql/integrations_foundation.sql</code> poi{' '}
+          <code className="text-[10px]">sql/integrations_tag_sources.sql</code>.
         </div>
       )}
       {loading ? (

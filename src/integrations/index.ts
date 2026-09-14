@@ -14,3 +14,4 @@ export {
   stubPharmacyAdapter,
   stubInvoicingAdapter,
 } from './adapters/stubs';
+export { enqueueOutbox, enqueuePatientUpserted, enqueueAppointmentLifecycle } from './outbox';

@@ -69,7 +69,7 @@ export interface AccountingSnapshot {
 export function exportRicaviCsv(rows: AccountingSnapshot['ricavi'], periodoSlug: string): void {
   downloadCsv(
     `dac_ricavi_${periodoSlug}.csv`,
-    ['Data', 'Codice', 'Paziente', 'Servizio', 'Reparto', 'Operatore', 'Importo', 'Metodo', 'Note'],
+    ['Data', 'Codice', 'Paziente', 'Servizio', 'Reparto', 'Operatore', 'Importo', 'Metodo', 'Source', 'InvoiceStatus', 'Note'],
     rows.map(r => [
       r.data,
       r.codice ?? '',
@@ -79,6 +79,8 @@ export function exportRicaviCsv(rows: AccountingSnapshot['ricavi'], periodoSlug:
       r.operatore_nome ?? '',
       euro(r.importo),
       r.metodo ?? '',
+      (r as any).source_system ?? '',
+      (r as any).invoice_status ?? '',
       r.note ?? '',
     ])
   )

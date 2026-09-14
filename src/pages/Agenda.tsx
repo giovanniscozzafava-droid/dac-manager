@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { reportError } from '@/lib/db'
+import { enqueueAppointmentLifecycle } from '@/integrations/outbox'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format, addDays, subDays, isToday, isBefore, startOfDay } from 'date-fns'
@@ -166,6 +167,15 @@ export function Agenda({ operatore }: Props) {
     if (STATI_IRREVERSIBILI.has(nuovoStato) && !confirm('Confermi ' + nuovoStato + '? Azione irreversibile.')) return
     const { error } = await supabase.from('appuntamenti').update({ stato: nuovoStato }).eq('id', appId)
     if (!reportError('cambio stato appuntamento', error)) return
+
+    // Predisposizione integrazioni: eventi verso clinica/lab (no-op se schema assente)
+    if (corrente) {
+      const snap = { ...corrente, id: appId, stato: nuovoStato }
+      if (nuovoStato === 'Completato') void enqueueAppointmentLifecycle('AppointmentCompleted', snap)
+      else if (nuovoStato === 'No-show') void enqueueAppointmentLifecycle('AppointmentNoShow', snap)
+      else if (nuovoStato === 'Cancellato') void enqueueAppointmentLifecycle('AppointmentCancelled', snap)
+    }
+
     setSelectedApp(null)
     loadAppuntamenti()
   }
