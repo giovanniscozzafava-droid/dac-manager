@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { reportError } from '@/lib/db'
 import type { Operatore } from '@/hooks/useAuth'
 import { format } from 'date-fns'
 import { it } from 'date-fns/locale'
@@ -146,16 +147,18 @@ function BugCard({ bug, isAdmin, onUpdate }: { bug: BugReport; isAdmin: boolean;
     setSaving(true)
     const payload: any = { stato: nuovoStato, note_admin: notaAdmin.trim() || null }
     if (nuovoStato === 'risolto' || nuovoStato === 'chiuso') payload.risolto_at = new Date().toISOString()
-    await supabase.from('bug_reports').update(payload).eq('id', bug.id)
+    const { error } = await supabase.from('bug_reports').update(payload).eq('id', bug.id)
     setSaving(false)
+    if (!reportError('aggiornamento stato bug', error)) return
     setEditNota(false)
     onUpdate()
   }
 
   async function salvaNota() {
     setSaving(true)
-    await supabase.from('bug_reports').update({ note_admin: notaAdmin.trim() || null }).eq('id', bug.id)
+    const { error } = await supabase.from('bug_reports').update({ note_admin: notaAdmin.trim() || null }).eq('id', bug.id)
     setSaving(false)
+    if (!reportError('salvataggio nota bug', error)) return
     setEditNota(false)
     onUpdate()
   }

@@ -63,8 +63,19 @@ export function PacchettiPage({ operatore }: Props) {
     if (pkg.sedute_fatte >= pkg.sedute_totali) { alert('Tutte le sedute completate'); return }
     const nuoveFatte = pkg.sedute_fatte + 1
     const nuovoStato = nuoveFatte >= pkg.sedute_totali ? 'Completato' : 'Attivo'
-    const { error } = await supabase.from('pacchetti').update({ sedute_fatte: nuoveFatte, sedute_rimaste: pkg.sedute_totali - nuoveFatte, stato: nuovoStato }).eq('id', pkg.id)
+    // Optimistic lock: evita double-click / race che sotto-contano le sedute
+    const { data: updated, error } = await supabase
+      .from('pacchetti')
+      .update({ sedute_fatte: nuoveFatte, sedute_rimaste: pkg.sedute_totali - nuoveFatte, stato: nuovoStato })
+      .eq('id', pkg.id)
+      .eq('sedute_fatte', pkg.sedute_fatte)
+      .select('id')
     if (!reportError('registrazione seduta', error)) return
+    if (!updated?.length) {
+      alert('Seduta già registrata o pacchetto aggiornato. Ricarico la lista.')
+      load()
+      return
+    }
     load()
   }
 

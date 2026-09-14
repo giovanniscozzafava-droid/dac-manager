@@ -14,7 +14,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : 2,
   reporter: 'html',
   use: {
-    baseURL: 'https://dac-manager.vercel.app',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'https://dac-manager.vercel.app',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',

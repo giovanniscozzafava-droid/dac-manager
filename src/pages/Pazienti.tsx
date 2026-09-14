@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { reportError } from '@/lib/db'
+import { enqueuePatientUpserted } from '@/integrations/outbox'
 import type { Operatore } from '@/hooks/useAuth'
 import { useAutoRefresh } from '@/hooks/useAutoRefresh'
 import { format } from 'date-fns'
@@ -451,8 +452,23 @@ function PazienteForm({ paziente, onClose, onSaved }: {
     const sessoCalc = giorno > 40 ? 'F' : 'M'
     if (giorno > 40) giorno -= 40
 
-    const annoCorrente = new Date().getFullYear() % 100
-    const anno = annoStr > annoCorrente ? 1900 + annoStr : 2000 + annoStr
+    const annoCorrente = new Date().getFullYear()
+    const y19 = 1900 + annoStr
+    const y20 = 2000 + annoStr
+    const a19 = annoCorrente - y19
+    const a20 = annoCorrente - y20
+    const ok19 = a19 >= 0 && a19 <= 120
+    const ok20 = a20 >= 0 && a20 <= 120
+    const inBand = (age: number) => age >= 14 && age <= 100
+    let anno: number
+    if (ok19 && ok20) {
+      if (inBand(a19) && !inBand(a20)) anno = y19
+      else if (inBand(a20) && !inBand(a19)) anno = y20
+      else if (!inBand(a19) && !inBand(a20)) anno = a19 > a20 ? y19 : y20 // es. 1920 vs 2020 → anziano
+      else anno = y19
+    } else if (ok19) anno = y19
+    else if (ok20) anno = y20
+    else anno = y20
 
     const dataN = `${anno}-${String(mese).padStart(2, '0')}-${String(giorno).padStart(2, '0')}`
 
@@ -519,16 +535,39 @@ function PazienteForm({ paziente, onClose, onSaved }: {
     if (isEdit) {
       const { error: updErr } = await supabase.from('pazienti').update(payload).eq('id', paziente!.id)
       if (!reportError('modifica paziente', updErr)) { setSaving(false); return }
+      void enqueuePatientUpserted({
+        id: paziente!.id,
+        nome: payload.nome,
+        cognome: payload.cognome,
+        codice_fiscale: payload.codice_fiscale,
+        email: payload.email,
+        telefono: payload.telefono,
+        sesso: payload.sesso,
+        data_nascita: payload.data_nascita,
+      })
     } else {
       const codice = 'PAZ-' + format(new Date(), 'yyMMddHHmmss')
-      const { error: insErr } = await supabase.from('pazienti').insert({
+      const { data: created, error: insErr } = await supabase.from('pazienti').insert({
         ...payload,
         codice,
         gdpr: 'mancante',
         noshow_count: 0,
         data_prima_visita: format(new Date(), 'yyyy-MM-dd'),
-      })
-      if (insErr) { alert('Errore salvataggio paziente: ' + insErr.message); setSaving(false); return }
+      }).select('id').single()
+      if (insErr) {
+        if (!reportError('salvataggio paziente', insErr)) { setSaving(false); return }
+      } else if (created?.id) {
+        void enqueuePatientUpserted({
+          id: created.id,
+          nome: payload.nome,
+          cognome: payload.cognome,
+          codice_fiscale: payload.codice_fiscale,
+          email: payload.email,
+          telefono: payload.telefono,
+          sesso: payload.sesso,
+          data_nascita: payload.data_nascita,
+        })
+      }
     }
 
     setSaving(false)

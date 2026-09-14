@@ -10,7 +10,11 @@ const SUPABASE_URL = 'https://yyjhuvftcwvnxlskvjne.supabase.co';
 const SUPABASE_ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5amh1dmZ0Y3d2bnhsc2t2am5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYxNDg1MDUsImV4cCI6MjA5MTcyNDUwNX0.MEohst7ka_cg_XtwLIbCRbxphxQghqYdFBDSkWMftas';
 
-async function fetchOperatoreByEmail(email: string, accessToken: string): Promise<Operatore | null> {
+type MatchOk = { ok: true; operatore: Operatore | null };
+type MatchErr = { ok: false; reason: 'network' | 'timeout' | 'http' };
+type MatchResult = MatchOk | MatchErr;
+
+async function fetchOperatoreByEmail(email: string, accessToken: string): Promise<MatchResult> {
   const cols = 'id,nome,ruolo,settore,email,attivo,emoji,colore,colore_bordo,area';
   const url = `${SUPABASE_URL}/rest/v1/operatori?select=${cols}&email=eq.${encodeURIComponent(email.toLowerCase().trim())}&attivo=eq.true&limit=1`;
   const ctl = new AbortController();
@@ -23,11 +27,12 @@ async function fetchOperatoreByEmail(email: string, accessToken: string): Promis
       },
       signal: ctl.signal,
     });
-    if (!r.ok) return null;
+    if (!r.ok) return { ok: false, reason: 'http' };
     const data = await r.json();
-    return Array.isArray(data) && data[0] ? (data[0] as Operatore) : null;
-  } catch {
-    return null;
+    return { ok: true, operatore: Array.isArray(data) && data[0] ? (data[0] as Operatore) : null };
+  } catch (e: any) {
+    if (e?.name === 'AbortError') return { ok: false, reason: 'timeout' };
+    return { ok: false, reason: 'network' };
   } finally {
     clearTimeout(t);
   }
@@ -53,8 +58,7 @@ export function useAuth() {
   const [operatore, setOperatore] = useState<Operatore | null>(null);
   const [authError, setAuthError] = useState('');
 
-  // Wrapper: usa fetch diretto + token dalla session corrente
-  const matchOperatore = useCallback(async (email: string, accessToken?: string): Promise<Operatore | null> => {
+  const matchOperatore = useCallback(async (email: string, accessToken?: string): Promise<MatchResult> => {
     let token = accessToken;
     if (!token) {
       try {
@@ -62,18 +66,15 @@ export function useAuth() {
         token = session?.access_token;
       } catch { /* noop */ }
     }
-    if (!token) return null;
+    if (!token) return { ok: false, reason: 'network' };
     return fetchOperatoreByEmail(email, token);
   }, []);
 
   useEffect(() => {
     let mounted = true;
     let currentUserId: string | null = null;
+    let authGen = 0;
 
-    // Watchdog: se entro 8s non siamo usciti da loading, c'è un blocco
-    // (lock orfano Supabase, sessione corrotta, cache JS obsoleto).
-    // Auto-recovery: pulisce la sessione locale e ricarica la pagina.
-    // sessionStorage `dac-auth-recovery` evita loop infiniti di reload.
     const RECOVERY_KEY = 'dac-auth-recovery';
     const watchdog = setTimeout(() => {
       if (!mounted) return;
@@ -95,32 +96,31 @@ export function useAuth() {
       window.location.reload();
     }, 8000);
 
-    const withTimeout = <T,>(p: Promise<T>, ms: number, fallback: T): Promise<T> =>
-      Promise.race([
-        p,
-        new Promise<T>((resolve) => setTimeout(() => resolve(fallback), ms)),
-      ]);
-
-    // NIENTE init manuale di getSession() qui.
-    // Bug noto: quando il client Supabase fa boot con session esistente in
-    // localStorage, il LockManager interno blocca le query successive finché
-    // non viene dispatched INITIAL_SESSION. Se chiamiamo matchOperatore qui,
-    // va in timeout 6s. Soluzione: lasciamo che onAuthStateChange (sotto)
-    // gestisca TUTTO. Il listener viene chiamato subito al subscribe con
-    // INITIAL_SESSION (sia null che valida), quindi non perdiamo nulla.
+    const withTimeout = async <T,>(p: Promise<T>, ms: number): Promise<{ timedOut: false; value: T } | { timedOut: true }> => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        return await Promise.race([
+          p.then(value => ({ timedOut: false as const, value })),
+          new Promise<{ timedOut: true }>(resolve => {
+            timer = setTimeout(() => resolve({ timedOut: true }), ms);
+          }),
+        ]);
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
       console.log('[auth]', event, newSession?.user?.id);
 
-      // TOKEN_REFRESHED: aggiorna solo la session, lascia user/operatore invariati
       if (event === 'TOKEN_REFRESHED') {
         if (newSession) setSession(newSession);
         return;
       }
 
-      // SIGNED_OUT o nessuna sessione: reset + mostra form login
       if (event === 'SIGNED_OUT' || !newSession?.user?.email) {
+        authGen += 1;
         currentUserId = null;
         setSession(null);
         setUser(null);
@@ -132,26 +132,50 @@ export function useAuth() {
         return;
       }
 
-      // SIGNED_IN / INITIAL_SESSION: se stesso utente, aggiorna solo session
       if (currentUserId === newSession.user.id) {
         setSession(newSession);
         return;
       }
 
-      // Nuovo utente: carica operatore con il token che abbiamo già
-      // (bypass client supabase per evitare lock interno dopo SIGNED_IN)
-      currentUserId = newSession.user.id;
-      const op = await withTimeout(
+      const gen = ++authGen;
+      const expectedUserId = newSession.user.id;
+      currentUserId = expectedUserId;
+
+      const raced = await withTimeout(
         matchOperatore(newSession.user.email, newSession.access_token),
-        6000,
-        null
+        6000
       );
+
+      // Logout / unmount / altro evento più recente: scarta risultato stale
+      if (!mounted || gen !== authGen || currentUserId !== expectedUserId) return;
+
       clearTimeout(watchdog);
       try { sessionStorage.removeItem(RECOVERY_KEY); } catch {}
       setSession(newSession);
       setUser(newSession.user);
-      setOperatore(op);
-      if (!op) setAuthError('Account non associato a nessun operatore.');
+
+      if (raced.timedOut) {
+        setOperatore(null);
+        setAuthError('Timeout di rete durante il login. Riprova.');
+        setLoading(false);
+        return;
+      }
+
+      const result = raced.value;
+      if (!result.ok) {
+        setOperatore(null);
+        setAuthError(
+          result.reason === 'timeout'
+            ? 'Timeout di rete durante il login. Riprova.'
+            : 'Problema di rete o server. Riprova tra poco.'
+        );
+        setLoading(false);
+        return;
+      }
+
+      setOperatore(result.operatore);
+      if (!result.operatore) setAuthError('Account non associato a nessun operatore.');
+      else setAuthError('');
       setLoading(false);
     });
 
