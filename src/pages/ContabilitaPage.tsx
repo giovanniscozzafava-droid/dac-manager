@@ -50,30 +50,36 @@ export function ContabilitaPage({ operatore }: Props) {
   const inizio = annuale ? format(new Date(mese.getFullYear(), 0, 1), 'yyyy-MM-dd') : format(mese, 'yyyy-MM-dd')
   const fine = annuale ? format(new Date(mese.getFullYear(), 11, 31), 'yyyy-MM-dd') : format(endOfMonth(mese), 'yyyy-MM-dd')
 
-  // Mese precedente per confronto
-  const mesePrecInizio = format(subMonths(mese, 1), 'yyyy-MM-dd')
-  const mesePrecFine = format(endOfMonth(subMonths(mese, 1)), 'yyyy-MM-dd')
+  // Periodo di confronto: mese precedente OPPURE anno precedente (modalità annuale)
+  const confrontoInizio = annuale
+    ? format(new Date(mese.getFullYear() - 1, 0, 1), 'yyyy-MM-dd')
+    : format(subMonths(mese, 1), 'yyyy-MM-dd')
+  const confrontoFine = annuale
+    ? format(new Date(mese.getFullYear() - 1, 11, 31), 'yyyy-MM-dd')
+    : format(endOfMonth(subMonths(mese, 1)), 'yyyy-MM-dd')
 
   const load = useCallback(async () => {
     setLoading(true)
-    // Carica 12 mesi di dati per trend
-    const inizioAnno = format(subYears(endOfMonth(mese), 1), 'yyyy-MM-dd')
+    // In annuale servono 2 anni (corrente + precedente) per le variazioni YoY
+    const inizioLoad = annuale
+      ? format(new Date(mese.getFullYear() - 1, 0, 1), 'yyyy-MM-dd')
+      : format(subYears(endOfMonth(mese), 1), 'yyyy-MM-dd')
     const [r, c] = await Promise.all([
-      supabase.from('ricavi').select('*').gte('data', inizioAnno).lte('data', fine).order('data'),
-      supabase.from('costi').select('*').gte('data', inizioAnno).lte('data', fine).order('data'),
+      supabase.from('ricavi').select('*').gte('data', inizioLoad).lte('data', fine).order('data'),
+      supabase.from('costi').select('*').gte('data', inizioLoad).lte('data', fine).order('data'),
     ])
     setRicavi(r.data ?? []); setCosti(c.data ?? [])
     setLoading(false)
-  }, [fine, mese])
+  }, [fine, mese, annuale])
 
   useEffect(() => { load() }, [load])
 
   // Filtra periodo corrente
   const ricaviPeriodo = ricavi.filter(r => r.data >= inizio && r.data <= fine)
   const costiPeriodo = costi.filter(c => c.data >= inizio && c.data <= fine)
-  // Mese precedente
-  const ricaviPrec = ricavi.filter(r => r.data >= mesePrecInizio && r.data <= mesePrecFine)
-  const costiPrec = costi.filter(c => c.data >= mesePrecInizio && c.data <= mesePrecFine)
+  // Periodo di confronto
+  const ricaviPrec = ricavi.filter(r => r.data >= confrontoInizio && r.data <= confrontoFine)
+  const costiPrec = costi.filter(c => c.data >= confrontoInizio && c.data <= confrontoFine)
 
   // Totali
   const totRicavi = ricaviPeriodo.reduce((s, r) => s + Number(r.importo), 0)

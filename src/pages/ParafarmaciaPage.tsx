@@ -13,6 +13,7 @@ import {
 interface CassaItem {
   id: string; data: string; tipo: string; importo: number
   metodo: string | null; operatore_nome: string | null; descrizione: string | null; note: string | null
+  imponibile?: number | null; aliquota_iva?: number | null; iva?: number | null
 }
 
 interface ProdottoParafarmacia {
@@ -120,8 +121,14 @@ function CassaTab({ operatore }: { operatore: Operatore }) {
           <div key={item.id} className="flex items-center gap-4 px-4 lg:px-6 py-3 hover:bg-white/[0.03]">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0 ${item.tipo === 'Entrata' ? 'bg-dac-green/10' : 'bg-dac-red/10'}`}>{item.tipo === 'Entrata' ? '💰' : '📤'}</div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-white">{item.tipo}</div>
-              <div className="text-[10px] text-dac-gray-400">{item.operatore_nome ?? '—'}{item.metodo ? ` • ${item.metodo}` : ''}{item.note ? ` • ${item.note}` : ''}</div>
+              <div className="text-sm font-semibold text-white truncate">{item.descrizione || item.tipo}</div>
+              <div className="text-[10px] text-dac-gray-400">
+                {item.tipo}
+                {item.operatore_nome ? ` • ${item.operatore_nome}` : ''}
+                {item.metodo ? ` • ${item.metodo}` : ''}
+                {item.aliquota_iva != null ? ` • IVA ${item.aliquota_iva}%` : ''}
+                {item.note ? ` • ${item.note}` : ''}
+              </div>
             </div>
             <div className={`text-sm font-bold ${item.tipo === 'Entrata' ? 'text-dac-green' : 'text-dac-red'}`}>{item.tipo === 'Entrata' ? '+' : '-'}€{Number(item.importo).toLocaleString('it-IT')}</div>
             <button onClick={async () => {
@@ -143,19 +150,31 @@ function CassaForm({ data, operatore, onClose, onSaved }: { data: string; operat
   const [tipo, setTipo] = useState('Entrata')
   const [importo, setImporto] = useState(0)
   const [metodo, setMetodo] = useState('Contanti')
+  const [aliquotaIva, setAliquotaIva] = useState(22)
   const [descrizione, setDescrizione] = useState('')
   const [note, setNote] = useState('')
   const [saving, setSaving] = useState(false)
 
+  const imponibile = importo > 0 ? importo / (1 + aliquotaIva / 100) : 0
+  const ivaEuro = importo - imponibile
+
   async function salva() {
     if (!importo || !descrizione.trim()) return; setSaving(true)
-    const payload = { data, tipo, importo, metodo, operatore_nome: operatore.nome, descrizione: descrizione.trim(), note: note || null }
+    const payload = {
+      data,
+      tipo,
+      importo,
+      metodo,
+      operatore_nome: operatore.nome,
+      descrizione: descrizione.trim(),
+      note: note || null,
+      aliquota_iva: aliquotaIva,
+      imponibile: Number(imponibile.toFixed(2)),
+      iva: Number(ivaEuro.toFixed(2)),
+    }
     const { error } = await supabase.from('parafarmacia_cassa').insert(payload).select()
     setSaving(false)
-    if (error) {
-      alert(`Errore salvataggio cassa:\n${error.message}\n${error.details ?? ''}\n${error.hint ?? ''}`)
-      return
-    }
+    if (!reportError('salvataggio movimento cassa', error)) return
     onSaved()
   }
 
@@ -168,8 +187,25 @@ function CassaForm({ data, operatore, onClose, onSaved }: { data: string; operat
             <button onClick={() => setTipo('Entrata')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${tipo === 'Entrata' ? 'bg-dac-green text-white shadow-lg' : 'text-dac-gray-400'}`}>💰 Entrata</button>
             <button onClick={() => setTipo('Uscita')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${tipo === 'Uscita' ? 'bg-dac-red text-white shadow-lg' : 'text-dac-gray-400'}`}>📤 Uscita</button>
           </div>
-          <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Importo € *</label>
+          <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Importo ivato € *</label>
             <input type="number" value={importo || ''} onChange={e => setImporto(Number(e.target.value))} className="input-field text-center text-lg font-bold" min={0} step={0.01} autoFocus /></div>
+          <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Aliquota IVA</label>
+            <select value={aliquotaIva} onChange={e => setAliquotaIva(Number(e.target.value))} className="input-field">
+              {ALIQUOTE_IVA.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+            </select>
+          </div>
+          {importo > 0 && (
+            <div className="grid grid-cols-2 gap-2 text-center">
+              <div className="rounded-lg bg-white/5 px-2 py-2">
+                <div className="text-[9px] text-dac-gray-500 uppercase">Imponibile</div>
+                <div className="text-xs font-bold text-white">€{imponibile.toFixed(2)}</div>
+              </div>
+              <div className="rounded-lg bg-white/5 px-2 py-2">
+                <div className="text-[9px] text-dac-gray-500 uppercase">IVA {aliquotaIva}%</div>
+                <div className="text-xs font-bold text-white">€{ivaEuro.toFixed(2)}</div>
+              </div>
+            </div>
+          )}
           <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Pagamento</label>
             <select value={metodo} onChange={e => setMetodo(e.target.value)} className="input-field">{METODI.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
           <div><label className="block text-[10px] font-semibold uppercase tracking-wider text-dac-gray-400 mb-1">Descrizione movimento *</label>
