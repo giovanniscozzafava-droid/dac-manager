@@ -74,4 +74,6 @@ Ogni nuovo software vendor richiede:
 
 - Big-bang “spegni DAC cassa + accendi gestionale” senza periodo parallelo.  
 - Fatturare da trigger sincronizzati alla UI.  
-- Mettere API keys nel bundle Vite.
+- Mettere API keys nel bundle Vite.  
+- Sommare `registro_specialisti` e `ricavi` nello stesso KPI senza regola esplicita.  
+- Lasciare attivi `fn_parafarmacia_mirror` e import POS contemporaneamente sullo stesso punto vendita.

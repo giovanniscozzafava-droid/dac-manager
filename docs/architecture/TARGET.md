@@ -120,3 +120,11 @@ Nessuna pagina React deve conoscere URL o schema di Fatture in Cloud.
 - Task/recall cross-reparto  
 - Report direzionale dopo riconciliazione  
 - Orchestrazione “da fatturare oggi”
+
+## Decisioni aperte (da chiudere prima degli adapter)
+
+1. **Agenda specialistica:** SoT DAC (raccomandato per front-office) vs software cliniche.  
+2. **`registro_specialisti`:** deprecare a favore di billable events da clinica, oppure tenerlo come shadow ledger esplicitamente escluso dal P&L.  
+3. **Pacchetti:** billable all’acquisto, per seduta, o solo su FiC?  
+4. **Parafarmacia:** spegnere cassa DAC in parallelo o cut-over dopo riconciliazione N giorni.  
+5. **Vendor concreti** LIS / clinica / parafarmacia (oltre a FiC già individuato).

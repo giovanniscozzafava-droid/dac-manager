@@ -66,6 +66,40 @@ Molti join sono per `paziente_nome` / `operatore_nome` (testo), non solo UUID. F
 ### 6. Report e automazioni sopra dati misti
 `ContabilitaPage` somma tutto ciò che è in `ricavi`/`costi` senza distinguere origine (`agenda` | `parafarmacia` | `manuale` | `futuro_lab`). Con integrazioni, senza `source`/`external_ref` i KPI diventano inutilizzabili.
 
+### 7. Ledger specialisti parallelo (non collegato a `ricavi`)
+`registro_specialisti` registra fatturato_lordo / % struttura / incassato **senza** scrivere su `ricavi`.  
+Esiste anche `ricavi.reparto = Specialisti` da altri path. Rischio: doppio conteggio *o* sotto-conteggio se si sincronizza un gestionale cliniche senza decidere quale è SoT.
+
+### 8. Pacchetti senza evento economico
+Acquisto pacchetto e `registraSeduta` aggiornano solo contatori — **nessun ricavo**. Se FiC o cliniche fatturano i pacchetti, DAC oggi non ha un billable event collegato.
+
+### 9. Cassa parafarmacia ≠ scarico stock
+`parafarmacia_cassa` non decrementa `inventario_parafarmacia`. Vendita e magazzino sono disaccoppiati: un gestionale POS esterno dovrà essere SoT di entrambi, non solo della cassa.
+
+### 10. Agenda colonne hardcoded
+`COLONNE_AGENDA` in `Agenda.tsx` è lista fissa di persone/aree, non derivata da `operatori` — fragile per sync con software cliniche.
+
+### 11. Dominio lab incompleto in app
+Tabella `referti` presente in DB/storico RLS ma **assente dal frontend**. L’export “CSV Laboratorio” filtra solo `ricavi.reparto`, non è un dominio esami.
+
+### 12. Automazioni: catalogo UI ≫ implementazione
+`AutomazioniPanel` elenca engine (clinical / revenue / supply…); trigger reali documentati: ricavo da agenda, recall, mirror parafarmacia. Accendere toggle “finti” su dati syncati da API sarebbe pericoloso.
+
+## Grafo dipendenze (sintesi)
+
+```
+Config(servizi, operatori, automazioni)
+        ↓
+Agenda ──completamento──► Ricavi ──► Contabilità / Dashboard / Report
+   └──► Task(recall)
+Pazienti ◄── Agenda, Pacchetti, Anamnesi, Presidio
+Anamnesi ──► Specialisti(email_referti)
+Parafarmacia(cassa) ──mirror──► Ricavi/Costi ──► Contabilità
+Presidio(scarico) ──► Costi ──► Contabilità
+Specialisti(registro) ──∥── (NON collegato a Ricavi)
+Inventario lab / Pacchetti ──∥── (nessun movimento economico automatico)
+```
+
 ## Inventario tabelle (dal codice)
 
 `operatori`, `pazienti`, `appuntamenti`, `servizi`, `anamnesi`, `specialisti`, `disponibilita_specialisti`, `registro_specialisti`, `pacchetti`, `pacchetti_predefiniti`, `inventario`, `inventario_presidio`, `presidio_scarichi`, `inventario_parafarmacia`, `parafarmacia_cassa`, `fornitori`, `ricavi`, `costi`, `task`, `automazioni`, `configurazione`, `email_config`, `email_templates`, `email_log`, `bug_reports`, `codici_catastali`, `referti` (citata in migrazioni storiche).
